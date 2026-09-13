@@ -205,8 +205,3 @@ npm run dev
 Developed by **RISHAB-999**
 - GitHub: [@RISHAB-999](https://github.com/RISHAB-999)
 - Repository: [Therapiques](https://github.com/RISHAB-999/Therapiques.git)
-
----
-
-## 📄 License
-This project is licensed under the [MIT License](LICENSE).
