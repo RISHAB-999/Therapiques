@@ -33,6 +33,34 @@ const Navbar = () => {
     // Close profile dropdown when clicking outside
     useClickOutside(profileDropdownRef, () => setShowProfileDropdown(false), showProfileDropdown)
 
+    // Prefetch critical routes on idle time or hover
+    const prefetchRoute = (path) => {
+        try {
+            if (path === '/blog') {
+                import('../pages/Blog.jsx')
+            } else if (path === '/Library' || path === '/library') {
+                import('../pages/Library.jsx')
+            }
+        } catch (e) {
+            // silent ignore
+        }
+    }
+
+    React.useEffect(() => {
+        const scheduleIdlePrefetch = () => {
+            prefetchRoute('/blog')
+            prefetchRoute('/Library')
+        }
+
+        if (typeof window !== 'undefined' && 'requestIdleCallback' in window) {
+            const idleId = window.requestIdleCallback(scheduleIdlePrefetch, { timeout: 3000 })
+            return () => window.cancelIdleCallback(idleId)
+        } else {
+            const timeoutId = setTimeout(scheduleIdlePrefetch, 1500)
+            return () => clearTimeout(timeoutId)
+        }
+    }, [])
+
     return (
         <div className='flex items-center justify-between text-sm py-4 mb-5 border-b border-[#EADBCE] gap-3'>
             {/* Logo */}
@@ -54,10 +82,20 @@ const Navbar = () => {
                 <NavLink to='/contact' className={({ isActive }) => `py-1 transition-colors ${isActive ? 'text-black font-bold' : 'hover:text-black'}`}>
                     <li className='whitespace-nowrap'>CONTACT</li>
                 </NavLink>
-                <NavLink to='/Library' className={({ isActive }) => `py-1 transition-colors ${isActive ? 'text-black font-bold' : 'hover:text-black'}`}>
+                <NavLink 
+                    to='/Library' 
+                    onMouseEnter={() => prefetchRoute('/Library')}
+                    onTouchStart={() => prefetchRoute('/Library')}
+                    className={({ isActive }) => `py-1 transition-colors ${isActive ? 'text-black font-bold' : 'hover:text-black'}`}
+                >
                     <li className='whitespace-nowrap'>LIBRARY</li>
                 </NavLink>
-                <NavLink to='/blog' className={({ isActive }) => `py-1 transition-colors ${isActive ? 'text-black font-bold' : 'hover:text-black'}`}>
+                <NavLink 
+                    to='/blog' 
+                    onMouseEnter={() => prefetchRoute('/blog')}
+                    onTouchStart={() => prefetchRoute('/blog')}
+                    className={({ isActive }) => `py-1 transition-colors ${isActive ? 'text-black font-bold' : 'hover:text-black'}`}
+                >
                     <li className='whitespace-nowrap'>BLOG</li>
                 </NavLink>
             </ul>

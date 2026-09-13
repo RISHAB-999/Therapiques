@@ -10,7 +10,7 @@ import { Autoplay } from 'swiper/modules'
 import Item from './Item'
 import { ShopContext } from '../context/ShopContext'
 
-// Highly optimized typewriter text reveal (GPU accelerated, word-level preserving proper spaces)
+// Lightweight text reveal for headings and key phrases (GPU accelerated)
 const TypewriterText = ({ text, className = '', delay = 0, speed = 0.035, as: Component = 'span' }) => {
     const words = useMemo(() => text.split(' '), [text])
 
@@ -72,7 +72,7 @@ const Hero = () => {
                 initial={{ opacity: 0, scale: 0.94, y: 30 }}
                 animate={{ opacity: 1, scale: 1, y: 0 }}
                 transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
-                className="flex-[5] bg-cover bg-center bg-no-repeat rounded-3xl relative overflow-hidden shadow-sm will-change-transform"
+                className="flex-[5] bg-cover bg-center bg-no-repeat rounded-3xl relative overflow-hidden shadow-sm"
                 style={{ backgroundImage: `url(${bg})` }}
             >
                 {/* Content Container (Left Side of Card) */}
@@ -80,32 +80,33 @@ const Hero = () => {
 
                     {/* 1. Subtitle */}
                     <h3 className='text-sm sm:text-lg md:text-2xl text-purple-600 font-medium'>
-                        <TypewriterText text="Explore Books You'll Love" delay={0.3} speed={0.03} />
+                        <TypewriterText text="Explore Books You'll Love" delay={0.25} speed={0.03} />
                     </h3>
 
                     {/* 2. Main Title using exact font-therapique (Fraunces serif) */}
                     <h1 className="font-therapique text-3xl sm:text-4xl md:text-5xl lg:text-[56px] leading-[1.08] font-bold tracking-tight text-gray-900 max-w-[550px]">
                         <span className="block">
-                            <TypewriterText text="Find Your Next" delay={0.6} speed={0.035} />
+                            <TypewriterText text="Find Your Next" delay={0.45} speed={0.035} />
                         </span>
                         <span className="block">
-                            <TypewriterText text="Book" delay={0.9} speed={0.045} />
+                            <TypewriterText text="Book" delay={0.65} speed={0.045} />
                         </span>
                     </h1>
 
                     {/* 3. Promo Tagline */}
                     <h2 className='font-therapique capitalize text-lg sm:text-2xl md:text-3xl tracking-tight text-gray-800 font-semibold pt-1'>
-                        <TypewriterText text="Up To 40% Off This Week" delay={1.1} speed={0.03} />
+                        <TypewriterText text="Up To 40% Off This Week" delay={0.8} speed={0.03} />
                     </h2>
 
-                    {/* 4. Description Paragraph */}
-                    <p className='font-sans max-w-[480px] font-normal text-gray-700 leading-relaxed text-xs sm:text-sm md:text-base line-clamp-3 md:line-clamp-none pt-1'>
-                        <TypewriterText
-                            text="Discover the healing power of reading with our curated selection of therapy books. Whether you're navigating anxiety, building emotional resilience, or exploring mindfulness, each title is chosen to support your personal growth. With secure checkout, fast delivery, and prices that make self-care accessible, your next breakthrough is just a page away."
-                            delay={1.35}
-                            speed={0.025}
-                        />
-                    </p>
+                    {/* 4. Description Paragraph (Smooth unified entrance without 50+ motion spans) */}
+                    <motion.p
+                        initial={{ opacity: 0, y: 8 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ duration: 0.45, delay: 0.95, ease: [0.22, 1, 0.36, 1] }}
+                        className='font-sans max-w-[480px] font-normal text-gray-700 leading-relaxed text-xs sm:text-sm md:text-base line-clamp-3 md:line-clamp-none pt-1'
+                    >
+                        Discover the healing power of reading with our curated selection of therapy books. Whether you're navigating anxiety, building emotional resilience, or exploring mindfulness, each title is chosen to support your personal growth. With secure checkout, fast delivery, and prices that make self-care accessible, your next breakthrough is just a page away.
+                    </motion.p>
 
                     {/* 5. CTA Button */}
                     <motion.div
@@ -115,7 +116,7 @@ const Hero = () => {
                             type: 'spring',
                             stiffness: 240,
                             damping: 18,
-                            delay: 1.8
+                            delay: 1.1
                         }}
                         className='flex mt-3 md:mt-4'
                     >

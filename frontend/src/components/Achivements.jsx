@@ -5,27 +5,27 @@ import { RiSecurePaymentLine, RiSoundModuleLine } from 'react-icons/ri'
 import { FaUsersLine } from 'react-icons/fa6'
 import { TbLocation } from 'react-icons/tb'
 
-// Highly optimized typewriter text reveal (GPU accelerated, word or char level)
-const TypewriterText = ({ text, className = '', delay = 0, speed = 0.025, mode = 'char', as: Component = 'span' }) => {
-  const items = useMemo(() => (mode === 'char' ? Array.from(text) : text.split(' ')), [text, mode])
+// Highly optimized typewriter text reveal (GPU accelerated, word level)
+const TypewriterText = ({ text, className = '', delay = 0, speed = 0.035, as: Component = 'span' }) => {
+  const words = useMemo(() => text.split(' '), [text])
   
   const container = useMemo(() => ({
     hidden: { opacity: 0 },
     visible: {
       opacity: 1,
       transition: {
-        staggerChildren: mode === 'char' ? speed : speed * 2.2,
+        staggerChildren: speed,
         delayChildren: delay,
       },
     },
-  }), [delay, speed, mode])
+  }), [delay, speed])
 
   const child = {
     hidden: { opacity: 0, y: 3 },
     visible: {
       opacity: 1,
       y: 0,
-      transition: { duration: 0.15, ease: 'easeOut' },
+      transition: { duration: 0.18, ease: 'easeOut' },
     },
   }
 
@@ -34,16 +34,16 @@ const TypewriterText = ({ text, className = '', delay = 0, speed = 0.025, mode =
       <motion.span
         initial="hidden"
         whileInView="visible"
-        viewport={{ once: true, amount: 0, margin: "200px 0px" }}
+        viewport={{ once: true, amount: 0, margin: "100px 0px" }}
         variants={container}
         className="inline"
       >
-        {items.map((item, index) => (
+        {words.map((word, index) => (
           <React.Fragment key={index}>
-            <motion.span variants={child} className="inline-block transform-gpu will-change-transform">
-              {item === ' ' ? '\u00A0' : item}
+            <motion.span variants={child} className="inline-block transform-gpu">
+              {word}
             </motion.span>
-            {mode !== 'char' && index < items.length - 1 && ' '}
+            {index < words.length - 1 && ' '}
           </React.Fragment>
         ))}
       </motion.span>
@@ -90,22 +90,23 @@ const Achivements = () => {
         <motion.div
           initial={{ opacity: 0, scale: 0.95, x: -35 }}
           whileInView={{ opacity: 1, scale: 1, x: 0 }}
-          viewport={{ once: true, amount: 0, margin: "200px 0px" }}
+          viewport={{ once: true, amount: 0, margin: "100px 0px" }}
           transition={{ duration: 0.7, ease: [0.22, 1, 0.36, 1] }}
-          className='flex-[2] flex justify-center flex-col bg-gradient-to-l from-yellow-200 px-6 lg:px-12 py-16 will-change-transform'
+          className='flex-[2] flex justify-center flex-col bg-gradient-to-l from-yellow-200 px-6 lg:px-12 py-16'
         >
           <h2 className='h2'>
-            <TypewriterText text="Our Journey So Far" delay={0.4} speed={0.035} mode="char" />
+            <TypewriterText text="Our Journey So Far" delay={0.3} speed={0.04} />
           </h2>
           
-          <p className='py-5 max-w-[47rem]'>
-            <TypewriterText 
-              text="From a small idea to a growing library, our journey has been fueled by a love for stories, knowledge, and the joy of sharing books with readers from all walks of life."
-              delay={0.8}
-              speed={0.035}
-              mode="word"
-            />
-          </p>
+          <motion.p 
+            initial={{ opacity: 0, y: 6 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true, amount: 0, margin: "100px 0px" }}
+            transition={{ duration: 0.5, delay: 0.5, ease: [0.22, 1, 0.36, 1] }}
+            className='py-5 max-w-[47rem]'
+          >
+            From a small idea to a growing library, our journey has been fueled by a love for stories, knowledge, and the joy of sharing books with readers from all walks of life.
+          </motion.p>
 
           {/* Statistic Container */}
           <div className='flex flex-wrap gap-4'>
@@ -114,13 +115,13 @@ const Achivements = () => {
                 key={index}
                 initial={{ opacity: 0, y: 15 }}
                 whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true, amount: 0, margin: "200px 0px" }}
+                viewport={{ once: true, amount: 0, margin: "100px 0px" }}
                 transition={{
                   duration: 0.5,
-                  delay: 0.8 + index * 0.12,
+                  delay: 0.6 + index * 0.1,
                   ease: [0.22, 1, 0.36, 1],
                 }}
-                className='p-4 rounded-lg will-change-transform'
+                className='p-4 rounded-lg'
               >
                 <div className='flex items-center gap-1'>
                   <h3 className='text-5xl font-sans'>{statistic.value}</h3>
@@ -136,9 +137,9 @@ const Achivements = () => {
         <motion.div
           initial={{ opacity: 0, x: 35 }}
           whileInView={{ opacity: 1, x: 0 }}
-          viewport={{ once: true, amount: 0, margin: "200px 0px" }}
+          viewport={{ once: true, amount: 0, margin: "100px 0px" }}
           transition={{ duration: 0.7, delay: 0.2, ease: [0.22, 1, 0.36, 1] }}
-          className='flex-1 relative max-sm:pl-8 flex items-center xl:justify-center pt-5 will-change-transform'
+          className='flex-1 relative max-sm:pl-8 flex items-center xl:justify-center pt-5'
         >
           <div className='flex-col'>
             <Title
@@ -153,13 +154,13 @@ const Achivements = () => {
                   key={index}
                   initial={{ opacity: 0, y: 15 }}
                   whileInView={{ opacity: 1, y: 0 }}
-                  viewport={{ once: true, amount: 0, margin: "200px 0px" }}
+                  viewport={{ once: true, amount: 0, margin: "100px 0px" }}
                   transition={{
                     duration: 0.45,
                     delay: 0.3 + index * 0.1,
                     ease: [0.22, 1, 0.36, 1],
                   }}
-                  className='flexCenter gap-3 mb-3 will-change-transform'
+                  className='flexCenter gap-3 mb-3'
                 >
                   {item.icon}
                   <div>

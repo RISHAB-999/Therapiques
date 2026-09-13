@@ -135,6 +135,7 @@ const BlogArticlesGrid = ({
                                             alt={article.title}
                                             className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 ease-out"
                                             loading="lazy"
+                                            decoding="async"
                                         />
                                         <div className="absolute top-3 left-3">
                                             <span className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-purple-900 bg-[#FAF5EE]/90 backdrop-blur-md px-2.5 py-1 rounded-full border border-[#EADBCE] shadow-2xs">

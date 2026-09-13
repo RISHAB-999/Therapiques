@@ -349,42 +349,79 @@ export const ButtonPop = ({
 
 /**
  * 8. Luxury Barba.js Style Curtain Wipe Page Transition
+ *    Performance: GPU-accelerated translate3d, strict timer cleanup, and reduced-motion support.
  */
 export const PageTransition = ({ children, pathname = '', className = '' }) => {
   const prevPathRef = useRef(pathname)
-  // Play curtain wipe animation on refresh for all pages other than home page
   const isHomePage = pathname === '/' || pathname === ''
   const [showCurtain, setShowCurtain] = useState(() => !isHomePage)
+  const timerRef = useRef(null)
+
+  // Respect OS reduced motion settings
+  const prefersReducedMotion = typeof window !== 'undefined' && 
+    window.matchMedia && 
+    window.matchMedia('(prefers-reduced-motion: reduce)').matches
 
   useEffect(() => {
-    // Auto-dismiss initial curtain on refresh
+    if (prefersReducedMotion) {
+      setShowCurtain(false)
+      return
+    }
+
+    // Auto-dismiss initial curtain on direct URL refresh
     if (showCurtain) {
-      const timer = setTimeout(() => {
+      if (timerRef.current) clearTimeout(timerRef.current)
+      timerRef.current = setTimeout(() => {
         setShowCurtain(false)
-      }, 900)
-      return () => clearTimeout(timer)
+        timerRef.current = null
+      }, 850)
+    }
+
+    return () => {
+      if (timerRef.current) {
+        clearTimeout(timerRef.current)
+        timerRef.current = null
+      }
     }
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
-    // Show curtain when navigating to a different page
-    if (prevPathRef.current !== pathname) {
-      setShowCurtain(true)
+    if (prefersReducedMotion) {
       prevPathRef.current = pathname
-
-      const timer = setTimeout(() => {
-        setShowCurtain(false)
-      }, 900)
-      return () => clearTimeout(timer)
+      setShowCurtain(false)
+      return
     }
-  }, [pathname])
+
+    // Trigger curtain when navigating between different routes
+    if (prevPathRef.current !== pathname) {
+      prevPathRef.current = pathname
+      
+      if (timerRef.current) {
+        clearTimeout(timerRef.current)
+      }
+
+      setShowCurtain(true)
+
+      timerRef.current = setTimeout(() => {
+        setShowCurtain(false)
+        timerRef.current = null
+      }, 850)
+    }
+
+    return () => {
+      if (timerRef.current) {
+        clearTimeout(timerRef.current)
+        timerRef.current = null
+      }
+    }
+  }, [pathname, prefersReducedMotion])
 
   return (
     <div className={`relative ${className}`}>
-      {/* Dual Curtain Wipe Plays ONLY when navigating to a different page */}
-      <AnimatePresence>
-        {showCurtain && (
-          <>
+      {/* Dual Curtain Wipe with Hardware-Accelerated 3D Transform */}
+      <AnimatePresence mode="wait">
+        {showCurtain && !prefersReducedMotion && (
+          <div key={`curtains-container-${pathname}`} className="fixed inset-0 z-50 pointer-events-none overflow-hidden">
             {/* Layer 1: Luxury Cream Accent Curtain */}
             <motion.div
               key={`curtain-accent-${pathname}`}
@@ -392,8 +429,8 @@ export const PageTransition = ({ children, pathname = '', className = '' }) => {
               animate={{ y: "-100%" }}
               exit={{ y: "-100%" }}
               transition={{ duration: 0.65, ease: [0.76, 0, 0.24, 1] }}
-              className="fixed inset-0 z-50 bg-[#F3E8DE] pointer-events-none transform-gpu will-change-transform"
-              style={{ backfaceVisibility: 'hidden' }}
+              className="absolute inset-0 bg-[#F3E8DE] pointer-events-none transform-gpu will-change-transform"
+              style={{ backfaceVisibility: 'hidden', transform: 'translate3d(0,0,0)' }}
             />
 
             {/* Layer 2: Rich Dark Espresso Main Curtain with Therapique Brand Logo */}
@@ -403,17 +440,17 @@ export const PageTransition = ({ children, pathname = '', className = '' }) => {
               animate={{ y: "-100%" }}
               exit={{ y: "-100%" }}
               transition={{ duration: 0.75, delay: 0.04, ease: [0.76, 0, 0.24, 1] }}
-              className="fixed inset-0 z-50 bg-[#241E1A] pointer-events-none flex items-center justify-center shadow-2xl transform-gpu will-change-transform"
-              style={{ backfaceVisibility: 'hidden' }}
+              className="absolute inset-0 bg-[#241E1A] pointer-events-none flex items-center justify-center shadow-2xl transform-gpu will-change-transform"
+              style={{ backfaceVisibility: 'hidden', transform: 'translate3d(0,0,0)' }}
             >
-              <div className="flex flex-col items-center gap-2">
+              <div className="flex flex-col items-center gap-2 select-none">
                 <span className="font-therapique text-3xl sm:text-4xl md:text-5xl font-bold text-[#FAF5EE] tracking-tight">
                   therapique
                 </span>
                 <div className="w-12 h-0.5 bg-[#8b65e2] rounded-full" />
               </div>
             </motion.div>
-          </>
+          </div>
         )}
       </AnimatePresence>
 

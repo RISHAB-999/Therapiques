@@ -1,4 +1,4 @@
-import React, { useContext, useState, useRef, useCallback } from 'react'
+import React, { useContext, useState, useRef, useCallback, useEffect } from 'react'
 import Title from './Title'
 import { ShopContext } from '../context/ShopContext'
 import { categories } from '../assets/data'
@@ -49,8 +49,7 @@ const categoryStylesMap = {
 };
 
 const CategoryCard = React.memo(({ cat, onClick }) => {
-  const [rotate, setRotate] = useState({ x: 0, y: 0 });
-  const [isHovered, setIsHovered] = useState(false);
+  const cardRef = useRef(null);
   const rafRef = useRef(null);
 
   const catKey = cat.name.toLowerCase().trim();
@@ -60,6 +59,16 @@ const CategoryCard = React.memo(({ cat, onClick }) => {
     borderColor: "#C5E6F8"
   };
 
+  // Clean up any pending RAF on unmount
+  useEffect(() => {
+    return () => {
+      if (rafRef.current) {
+        cancelAnimationFrame(rafRef.current);
+        rafRef.current = null;
+      }
+    };
+  }, []);
+
   const handleMouseMove = useCallback((e) => {
     if (rafRef.current) return;
     const currentTarget = e.currentTarget;
@@ -67,12 +76,25 @@ const CategoryCard = React.memo(({ cat, onClick }) => {
     const clientY = e.clientY;
 
     rafRef.current = requestAnimationFrame(() => {
+      if (!cardRef.current) {
+        rafRef.current = null;
+        return;
+      }
       const rect = currentTarget.getBoundingClientRect();
       const x = clientX - rect.left - rect.width / 2;
       const y = clientY - rect.top - rect.height / 2;
-      setRotate({ x: -(y / rect.height) * 15, y: (x / rect.width) * 15 });
+      const rotX = -(y / rect.height) * 15;
+      const rotY = (x / rect.width) * 15;
+      cardRef.current.style.transform = `rotateX(${rotX}deg) rotateY(${rotY}deg) translateZ(12px) scale(1.03)`;
+      cardRef.current.style.boxShadow = `0 14px 28px -6px ${styleConfig.shadowColor}, 0 4px 10px rgba(0,0,0,0.04)`;
       rafRef.current = null;
     });
+  }, [styleConfig.shadowColor]);
+
+  const handleMouseEnter = useCallback(() => {
+    if (cardRef.current) {
+      cardRef.current.style.transition = 'transform 0.08s ease-out, box-shadow 0.2s ease-out';
+    }
   }, []);
 
   const handleMouseLeave = useCallback(() => {
@@ -80,41 +102,37 @@ const CategoryCard = React.memo(({ cat, onClick }) => {
       cancelAnimationFrame(rafRef.current);
       rafRef.current = null;
     }
-    setIsHovered(false);
-    setRotate({ x: 0, y: 0 });
+    if (cardRef.current) {
+      cardRef.current.style.transition = 'transform 0.35s ease-out, box-shadow 0.35s ease-out, border-color 0.35s ease-out';
+      cardRef.current.style.transform = 'rotateX(0deg) rotateY(0deg) translateZ(0px) scale(1)';
+      cardRef.current.style.boxShadow = '0 2px 8px rgba(70,56,48,0.04)';
+    }
   }, []);
 
   return (
     <div
       onClick={onClick}
       onMouseMove={handleMouseMove}
-      onMouseEnter={() => setIsHovered(true)}
+      onMouseEnter={handleMouseEnter}
       onMouseLeave={handleMouseLeave}
       className="cursor-pointer group w-full"
       style={{ perspective: '1000px' }}
     >
       <div
+        ref={cardRef}
         style={{
           backgroundColor: styleConfig.bgColor,
-          transform: isHovered
-            ? `rotateX(${rotate.x}deg) rotateY(${rotate.y}deg) translateZ(12px) scale(1.03)`
-            : 'rotateX(0deg) rotateY(0deg) translateZ(0px) scale(1)',
-          boxShadow: isHovered
-            ? `0 14px 28px -6px ${styleConfig.shadowColor}, 0 4px 10px rgba(0,0,0,0.04)`
-            : '0 2px 8px rgba(70,56,48,0.04)',
+          transform: 'rotateX(0deg) rotateY(0deg) translateZ(0px) scale(1)',
+          boxShadow: '0 2px 8px rgba(70,56,48,0.04)',
           borderColor: styleConfig.borderColor,
-          transition: isHovered ? 'transform 0.08s ease-out' : 'transform 0.35s ease-out, box-shadow 0.35s ease-out, border-color 0.35s ease-out',
+          transition: 'transform 0.35s ease-out, box-shadow 0.35s ease-out, border-color 0.35s ease-out',
           transformStyle: 'preserve-3d',
         }}
-        className="flex flex-col items-center justify-center w-full min-h-[128px] sm:min-h-[145px] rounded-3xl p-3.5 sm:p-4 border transition-all duration-300 relative will-change-transform"
+        className="flex flex-col items-center justify-center w-full min-h-[128px] sm:min-h-[145px] rounded-3xl p-3.5 sm:p-4 border transition-all duration-300 relative"
       >
         {/* Floating Icon Container */}
         <div 
-          style={{
-            transform: isHovered ? 'translateZ(20px)' : 'translateZ(0px)',
-            transition: 'transform 0.25s ease-out'
-          }}
-          className="p-2 sm:p-2.5 bg-white/90 rounded-2xl shadow-xs group-hover:shadow-md transition-all duration-300 mb-2 flex items-center justify-center"
+          className="p-2 sm:p-2.5 bg-white/90 rounded-2xl shadow-xs group-hover:shadow-md transition-all duration-300 mb-2 flex items-center justify-center group-hover:translate-z-2"
         >
           <img
             src={cat.image}
@@ -127,10 +145,6 @@ const CategoryCard = React.memo(({ cat, onClick }) => {
 
         {/* Category Label */}
         <h5 
-          style={{
-            transform: isHovered ? 'translateZ(16px)' : 'translateZ(0px)',
-            transition: 'transform 0.25s ease-out'
-          }}
           className="text-xs sm:text-sm capitalize text-gray-900 font-bold text-center leading-tight tracking-tight px-1"
         >
           {cat.name}
