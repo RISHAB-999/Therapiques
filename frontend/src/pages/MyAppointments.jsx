@@ -279,56 +279,60 @@ const MyAppointments = () => {
                   )}
 
                   {/* 2. Large Primary "Join Video Call" Button (Controlled by Scheduled Window) */}
-                  {!item.cancelled && !item.isCompleted && (() => {
-                    const joinStatus = getAppointmentJoinStatus(item, currentTime)
-                    return (
-                      <>
-                        {joinStatus.canJoin ? (
-                          <button
-                            onClick={() => navigate(`/video-call/${item._id}`)}
-                            className='w-full bg-[#7C3AED] hover:bg-[#6D28D9] active:scale-[0.98] text-white font-bold py-2.5 sm:py-3 px-6 rounded-full text-xs sm:text-sm transition-all shadow-sm flex items-center justify-center gap-2 cursor-pointer'
-                            title="Join active video consultation session"
-                          >
-                            <Video className='w-4 h-4' />
-                            <span>Join Video Call</span>
-                          </button>
-                        ) : joinStatus.status === 'BEFORE_WINDOW' ? (
-                          <div className='w-full flex flex-col items-center gap-1'>
+                  {!item.cancelled && !item.isCompleted && (
+                    <>
+                      {(() => {
+                        const joinStatus = getAppointmentJoinStatus(item, currentTime)
+                        if (joinStatus.canJoin) {
+                          return (
+                            <button
+                              onClick={() => navigate(`/video-call/${item._id}`)}
+                              className='w-full bg-[#7C3AED] hover:bg-[#6D28D9] active:scale-[0.98] text-white font-bold py-2.5 sm:py-3 px-6 rounded-full text-xs sm:text-sm transition-all shadow-sm flex items-center justify-center gap-2 cursor-pointer'
+                              title="Join active video consultation session"
+                            >
+                              <Video className='w-4 h-4' />
+                              <span>Join Video Call</span>
+                            </button>
+                          )
+                        } else if (joinStatus.status === 'BEFORE_WINDOW') {
+                          return (
+                            <div className='w-full flex flex-col items-center gap-1'>
+                              <button
+                                disabled
+                                className='w-full bg-[#7C3AED]/10 border border-[#7C3AED]/25 text-[#7C3AED] font-bold py-2.5 sm:py-3 px-4 rounded-full text-xs sm:text-sm transition-all flex items-center justify-center gap-2 cursor-not-allowed opacity-90 shadow-2xs'
+                                title={`Consultation room opens 10 minutes before start time (at ${joinStatus.formattedJoinTime})`}
+                              >
+                                <Clock className='w-4 h-4 text-[#7C3AED]' />
+                                <span>{joinStatus.buttonText}</span>
+                              </button>
+                              <span className='text-[10px] text-gray-500 font-medium text-center'>
+                                Join opens 10 min before start
+                              </span>
+                            </div>
+                          )
+                        } else {
+                          return (
                             <button
                               disabled
-                              className='w-full bg-[#7C3AED]/10 border border-[#7C3AED]/25 text-[#7C3AED] font-bold py-2.5 sm:py-3 px-4 rounded-full text-xs sm:text-sm transition-all flex items-center justify-center gap-2 cursor-not-allowed opacity-90 shadow-2xs'
-                              title={`Consultation room opens 10 minutes before start time (at ${joinStatus.formattedJoinTime})`}
+                              className='w-full bg-slate-100 border border-slate-200 text-slate-500 font-bold py-2.5 sm:py-3 px-6 rounded-full text-xs sm:text-sm transition-all flex items-center justify-center gap-2 cursor-not-allowed shadow-2xs'
+                              title="Scheduled consultation duration has ended"
                             >
-                              <Clock className='w-4 h-4 text-[#7C3AED]' />
-                              <span>{joinStatus.buttonText}</span>
+                              <Clock className='w-4 h-4 text-slate-400' />
+                              <span>Appointment Ended</span>
                             </button>
-                            <span className='text-[10px] text-gray-500 font-medium text-center'>
-                              Join opens 10 min before start
-                            </span>
-                          </div>
-                        ) : (
-                          <button
-                            disabled
-                            className='w-full bg-slate-100 border border-slate-200 text-slate-500 font-bold py-2.5 sm:py-3 px-6 rounded-full text-xs sm:text-sm transition-all flex items-center justify-center gap-2 cursor-not-allowed shadow-2xs'
-                            title="Scheduled consultation duration has ended"
-                          >
-                            <Clock className='w-4 h-4 text-slate-400' />
-                            <span>Appointment Ended</span>
-                          </button>
-                        )}
+                          )
+                        }
+                      })()}
 
-                        {/* Pay Online button if unpaid */}
-                        {!item.payment && !item.paidWithCoins && (
-                          <button
-                            onClick={() => toast.info('Online payment gateway checkout')}
-                            className='w-full bg-emerald-600 hover:bg-emerald-700 active:scale-[0.98] text-white font-bold py-2.5 px-6 rounded-full text-xs sm:text-sm transition-all shadow-sm flex items-center justify-center gap-2 cursor-pointer'
-                          >
-                            <span>Pay Online</span>
-                          </button>
-                        )}
-                      </>
-                    )
-                  })()}
+                      {/* Pay Online button if unpaid */}
+                      {!item.payment && !item.paidWithCoins && (
+                        <button
+                          onClick={() => toast.info('Online payment gateway checkout')}
+                          className='w-full bg-emerald-600 hover:bg-emerald-700 active:scale-[0.98] text-white font-bold py-2.5 px-6 rounded-full text-xs sm:text-sm transition-all shadow-sm flex items-center justify-center gap-2 cursor-pointer'
+                        >
+                          <span>Pay Online</span>
+                        </button>
+                      )}
 
                       {/* 3. Subtle Horizontal Divider */}
                       <div className='w-full h-px bg-[#EADBCE]/80 my-0.5' />
