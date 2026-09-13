@@ -32,7 +32,7 @@ const Cart = lazy(() => import('./pages/Cart.jsx'))
 const AddressForm = lazy(() => import('./pages/AddressForm.jsx'))
 const MyOrders = lazy(() => import('./pages/MyOrders.jsx'))
 const TrackOrder = lazy(() => import('./pages/TrackOrder.jsx'))
-import VideoCallPage from './components/videocall/VideoCallPage.jsx'
+const VideoCallPage = lazy(() => import('./components/videocall/VideoCallPage.jsx'))
 const PrivacyTerms = lazy(() => import('./pages/PrivacyTerms.jsx'))
 const Blog = lazy(() => import('./pages/Blog.jsx'))
 

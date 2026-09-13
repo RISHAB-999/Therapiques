@@ -5,14 +5,22 @@
 // This bridge only provides blog article info for blog-specific navigation.
 // ═══════════════════════════════════════════════════════════════════════════
 
-import { blogArticles, blogCategories, specialtyGuide } from './blogData';
+// Static route validation is kept standalone and fast without pulling in the full blog dataset.
+let _blogDataCache = null;
+const getBlogData = async () => {
+    if (!_blogDataCache) {
+        _blogDataCache = await import('./blogData');
+    }
+    return _blogDataCache;
+};
 
 /**
  * Get a compact summary of blog articles for display purposes.
  * This is used by the frontend chat component to show blog-related
  * action buttons with correct article IDs — NOT sent to the AI.
  */
-export const getArticleSummaries = () => {
+export const getArticleSummaries = async () => {
+    const { blogArticles } = await getBlogData();
     return blogArticles.map(a => ({
         id: a.id,
         slug: a.slug,
@@ -26,7 +34,8 @@ export const getArticleSummaries = () => {
 /**
  * Get specialty guide summaries for frontend display purposes.
  */
-export const getSpecialtySummaries = () => {
+export const getSpecialtySummaries = async () => {
+    const { specialtyGuide } = await getBlogData();
     return specialtyGuide.map(s => ({
         id: s.id,
         speciality: s.speciality,
@@ -38,14 +47,18 @@ export const getSpecialtySummaries = () => {
 /**
  * Get all blog category names.
  */
-export const getCategoryList = () => [...blogCategories];
+export const getCategoryList = async () => {
+    const { blogCategories } = await getBlogData();
+    return [...blogCategories];
+};
 
 /**
  * Find a blog article by searching title/category/content keywords.
  * Used to resolve AI-suggested topics to actual articles for navigation.
  */
-export const findArticleByTopic = (topic) => {
+export const findArticleByTopic = async (topic) => {
     if (!topic || typeof topic !== 'string') return null;
+    const { blogArticles } = await getBlogData();
     const lower = topic.toLowerCase().trim();
 
     // Exact title match first
