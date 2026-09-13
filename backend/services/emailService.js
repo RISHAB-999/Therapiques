@@ -845,3 +845,104 @@ export const sendSessionCompletedEmails = async ({
   return Promise.all(promises);
 };
 
+// ─────────────────────────────────────────────────
+// 10. 10-Minute Pre-Join Reminder Email → Patient
+// ─────────────────────────────────────────────────
+export const sendAppointmentTenMinReminderPatient = async ({
+  appointmentId,
+  patientEmail, patientName, doctorName, doctorSpeciality,
+  slotDate, slotTime, joinLink
+}) => {
+  if (!patientEmail) return;
+  const d = fmtDate(slotDate);
+  const shortRef = appointmentId ? String(appointmentId).slice(-6).toUpperCase() : Math.random().toString(36).substring(2, 8).toUpperCase();
+  const url = joinLink || `http://localhost:5173/video-call/${appointmentId}`;
+
+  return sendMailSafe({
+    to: patientEmail,
+    subject: `🔔 Starting in 10 Mins: Video Consultation with Dr. ${doctorName} [#${shortRef}]`,
+    html: wrap({
+      title: 'Your Consultation Room is Open — Therapique',
+      preheader: `Your session with Dr. ${doctorName} starts in 10 minutes (${slotTime}). Click here to join your video room.`,
+      body: `
+<h2 style="font-size:20px;font-weight:800;color:#7C3AED;margin-top:0">Your Consultation Room is Open 🚪✨</h2>
+<p style="color:#4A423D;font-size:14px">
+  Hello <b>${patientName || 'Patient'}</b>, your video consultation with <b>Dr. ${doctorName}</b> is scheduled to start in <b>10 minutes</b> at <b>${slotTime}</b>.
+</p>
+<div class="card" style="border-left: 4px solid #7C3AED;">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+    <span style="font-weight:800;font-size:15px;color:#1A1715">Session Details</span>
+    <span class="badge bp">Room Ready</span>
+  </div>
+  ${tableWrap(`
+    ${tableRow('Booking Ref', `#${shortRef}`)}
+    ${tableRow('Doctor', `Dr. ${doctorName}`)}
+    ${tableRow('Speciality', doctorSpeciality || 'Clinical Specialist')}
+    ${tableRow('Date & Time', `${d} at ${slotTime}`)}
+    ${tableRow('Access', 'Video & Audio Room Active', 'color:#7C3AED;font-weight:bold;')}
+  `)}
+</div>
+
+<div style="text-align:center;margin: 28px 0 16px;">
+  <a href="${url}" class="btn" style="background:#7C3AED;color:#FFF;padding:14px 36px;font-size:14px;border-radius:50px;text-decoration:none;display:inline-block;font-weight:700;box-shadow:0 4px 14px rgba(124,58,237,0.35);">
+    📹 Join Video Consultation Now
+  </a>
+</div>
+
+<p style="font-size:12px;color:#8C7B70;text-align:center;margin-top:8px;">
+  Please ensure your camera and microphone permissions are enabled on your browser.
+</p>`
+    })
+  });
+};
+
+// ─────────────────────────────────────────────────
+// 11. 10-Minute Pre-Join Reminder Email → Doctor
+// ─────────────────────────────────────────────────
+export const sendAppointmentTenMinReminderDoctor = async ({
+  appointmentId,
+  doctorEmail, doctorName, patientName,
+  slotDate, slotTime, joinLink
+}) => {
+  if (!doctorEmail) return;
+  const d = fmtDate(slotDate);
+  const shortRef = appointmentId ? String(appointmentId).slice(-6).toUpperCase() : Math.random().toString(36).substring(2, 8).toUpperCase();
+  const url = joinLink || `http://localhost:5174/doctor-video-call/${appointmentId}`;
+
+  return sendMailSafe({
+    to: doctorEmail,
+    subject: `🔔 Starting in 10 Mins: Patient Consultation with ${patientName} [#${shortRef}]`,
+    html: wrap({
+      title: 'Consultation Room Ready — Therapique Doctor Portal',
+      preheader: `Your session with patient ${patientName} starts in 10 minutes (${slotTime}).`,
+      body: `
+<h2 style="font-size:20px;font-weight:800;color:#7C3AED;margin-top:0">Consultation Starting in 10 Minutes 🩺</h2>
+<p style="color:#4A423D;font-size:14px">
+  Hello <b>Dr. ${doctorName}</b>, your upcoming consultation with <b>${patientName}</b> starts in <b>10 minutes</b> (${slotTime}).
+</p>
+<div class="card" style="border-left: 4px solid #7C3AED;">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+    <span style="font-weight:800;font-size:15px;color:#1A1715">Patient Case Details</span>
+    <span class="badge bp">Room Ready</span>
+  </div>
+  ${tableWrap(`
+    ${tableRow('Booking Ref', `#${shortRef}`)}
+    ${tableRow('Patient Name', patientName || 'Patient')}
+    ${tableRow('Date & Time', `${d} at ${slotTime}`)}
+    ${tableRow('Room Status', 'Online & Ready for Doctor', 'color:#7C3AED;font-weight:bold;')}
+  `)}
+</div>
+
+<div style="text-align:center;margin: 28px 0 16px;">
+  <a href="${url}" class="btn" style="background:#7C3AED;color:#FFF;padding:14px 36px;font-size:14px;border-radius:50px;text-decoration:none;display:inline-block;font-weight:700;box-shadow:0 4px 14px rgba(124,58,237,0.35);">
+    📹 Join Patient Consultation
+  </a>
+</div>
+
+<p style="font-size:12px;color:#8C7B70;text-align:center;margin-top:8px;">
+  You can also join directly from your Doctor Dashboard appointments table.
+</p>`
+    })
+  });
+};
+

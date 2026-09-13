@@ -16,6 +16,7 @@ import { initializeSocket } from './socket/index.js'
 import doctorModel from './models/doctorModel.js'
 import userModel from './models/userModel.js'
 import appointmentModel from './models/appointmentModel.js'
+import { startAppointmentReminderService } from './services/appointmentReminderService.js'
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -25,6 +26,9 @@ const server = http.createServer(app)
 const PORT = process.env.PORT || 4000
 
 connectDB().then(() => {
+    // Start automated 10-minute appointment pre-join reminder service
+    startAppointmentReminderService();
+
     // Defer appointment image sync to background — runs 5s after startup to avoid blocking initial requests
     setTimeout(async () => {
         try {
