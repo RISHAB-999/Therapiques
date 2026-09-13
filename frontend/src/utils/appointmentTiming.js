@@ -1,11 +1,53 @@
 /**
- * Shared Appointment Timing & Join-Window Calculator for Therapique (Frontend)
- *
- * Rules:
- * - Join window begins exactly 10 minutes before scheduled start time.
- * - Join window ends when the appointment duration expires (default 30 minutes).
- * - Outside this window, joining is strictly prohibited.
+ * Canonical Slot Time Normalizer:
+ * Converts any time string (e.g. "20:30", "8:30 pm", "08:30 PM", "8:30") into standard format "08:30 PM".
  */
+export const normalizeSlotTime = (timeStr) => {
+  if (!timeStr) return '';
+  const str = String(timeStr).trim();
+  const match = str.match(/^(\d{1,2}):(\d{2})(?:\s*([a-zA-Z]+))?$/i);
+  if (!match) return str;
+
+  let hours = parseInt(match[1], 10);
+  const minutes = parseInt(match[2], 10);
+  const modifier = match[3] ? match[3].toUpperCase() : null;
+
+  if (modifier === 'PM' && hours < 12) {
+    hours += 12;
+  } else if (modifier === 'AM' && hours === 12) {
+    hours = 0;
+  }
+
+  const period = hours >= 12 ? 'PM' : 'AM';
+  const hour12 = hours % 12 === 0 ? 12 : hours % 12;
+  const formattedHour = String(hour12).padStart(2, '0');
+  const formattedMinute = String(minutes).padStart(2, '0');
+  return `${formattedHour}:${formattedMinute} ${period}`;
+};
+
+/**
+ * Canonical Slot Date Normalizer:
+ * Converts any date string (e.g. "13_9_2026", "13-09-2026", "2026-09-13") into standard format "13_9_2026".
+ */
+export const normalizeSlotDate = (dateStr) => {
+  if (!dateStr) return '';
+  const str = String(dateStr).trim();
+  if (str.includes('_')) {
+    const parts = str.split('_').map((p) => parseInt(p, 10));
+    if (parts.length >= 3 && !isNaN(parts[0]) && !isNaN(parts[1]) && !isNaN(parts[2])) {
+      return `${parts[0]}_${parts[1]}_${parts[2]}`;
+    }
+  } else if (str.includes('-')) {
+    const parts = str.split('-').map((p) => parseInt(p, 10));
+    if (parts.length >= 3 && !isNaN(parts[0]) && !isNaN(parts[1]) && !isNaN(parts[2])) {
+      if (parts[0] > 1000) {
+        return `${parts[2]}_${parts[1]}_${parts[0]}`;
+      }
+      return `${parts[0]}_${parts[1]}_${parts[2]}`;
+    }
+  }
+  return str;
+};
 
 export const parseAppointmentDateTime = (slotDate, slotTime) => {
   if (!slotDate || !slotTime) return null;

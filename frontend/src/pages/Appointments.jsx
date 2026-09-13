@@ -6,6 +6,7 @@ import RelatedDoctors from '../components/RelatedDoctors'
 import axios from 'axios'
 import { toast } from 'react-toastify'
 import { loadRazorpay } from '../utils/loadRazorpay'
+import { normalizeSlotTime, normalizeSlotDate } from '../utils/appointmentTiming'
 
 const Appointments = () => {
   const { docId } = useParams()
@@ -58,16 +59,25 @@ const Appointments = () => {
       let timeSlots = []
 
       while (currentDate < endTime) {
-        let formattedTime = currentDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+        // Deterministic 12-hour time format with leading zeros: e.g. "08:30 PM", "10:00 AM"
+        const hours = currentDate.getHours();
+        const minutes = currentDate.getMinutes();
+        const period = hours >= 12 ? 'PM' : 'AM';
+        const hour12 = hours % 12 === 0 ? 12 : hours % 12;
+        const formattedTime = `${String(hour12).padStart(2, '0')}:${String(minutes).padStart(2, '0')} ${period}`;
 
         let day = currentDate.getDate()
         let month = currentDate.getMonth() + 1
         let year = currentDate.getFullYear()
 
-        const slotDate = day + "_" + month + "_" + year
+        const slotDate = `${day}_${month}_${year}`
         const slotTime = formattedTime
 
-        const isBooked = Boolean(docInfo.slots_booked && docInfo.slots_booked[slotDate] && docInfo.slots_booked[slotDate].includes(slotTime))
+        const bookedListForDate = (docInfo.slots_booked && docInfo.slots_booked[slotDate])
+          ? docInfo.slots_booked[slotDate].map(s => normalizeSlotTime(s))
+          : [];
+
+        const isBooked = bookedListForDate.includes(normalizeSlotTime(slotTime));
 
         // Add all slots with availability status
         timeSlots.push({
@@ -115,10 +125,11 @@ const Appointments = () => {
     let month = date.getMonth() + 1
     let year = date.getFullYear()
 
-    const slotDate = day + "_" + month + "_" + year
+    const slotDate = normalizeSlotDate(`${day}_${month}_${year}`)
+    const normalizedTime = normalizeSlotTime(slotTime)
 
     // Verify selected slot is not already booked in local state
-    const currentSlotObj = docSlots[slotIndex]?.slots?.find(s => s.time === slotTime)
+    const currentSlotObj = docSlots[slotIndex]?.slots?.find(s => normalizeSlotTime(s.time) === normalizedTime)
     if (currentSlotObj && currentSlotObj.isBooked) {
       toast.error('This appointment slot has already been booked. Please choose another time.')
       getDoctorData()
@@ -132,7 +143,7 @@ const Appointments = () => {
       if (paymentMethod === 'coins') {
         // Book with coins
         const response = await axios.post(backendUrl + '/api/user/book-appointment-coins',
-          { docId, slotDate, slotTime },
+          { docId, slotDate, slotTime: normalizedTime },
           { headers: { token } }
         )
         data = response.data
@@ -149,7 +160,7 @@ const Appointments = () => {
       } else {
         // Book with Razorpay payment
         const response = await axios.post(backendUrl + '/api/user/book-appointment-payment',
-          { docId, slotDate, slotTime },
+          { docId, slotDate, slotTime: normalizedTime },
           { headers: { token } }
         )
         data = response.data
@@ -223,9 +234,21 @@ const Appointments = () => {
     }
   };
 
+  // Real-time synchronization: poll doctor slots every 4 seconds while on the booking page
+  useEffect(() => {
+    getDoctorData(true)
+    const interval = setInterval(() => {
+      getDoctorData(true)
+    }, 4000)
+    return () => clearInterval(interval)
+  }, [getDoctorData])
+
   useEffect(() => {
     if (doctors.length > 0) {
-      fetchDocInfo()
+      const doc = doctors.find(d => d._id === docId)
+      if (doc) {
+        setDocInfo(doc)
+      }
     }
   }, [doctors, docId])
 
@@ -238,12 +261,14 @@ const Appointments = () => {
   // Deselect slotTime if the selected slot is already booked on the active day
   useEffect(() => {
     if (slotTime && docSlots[slotIndex]?.slots) {
-      const selectedSlot = docSlots[slotIndex].slots.find(s => s.time === slotTime)
+      const selectedSlot = docSlots[slotIndex].slots.find(
+        s => normalizeSlotTime(s.time) === normalizeSlotTime(slotTime)
+      )
       if (selectedSlot && selectedSlot.isBooked) {
         setSlotTime('')
       }
     }
-  }, [slotIndex, docSlots])
+  }, [slotIndex, docSlots, slotTime])
 
   return docInfo && (
     <div>

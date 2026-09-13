@@ -22,7 +22,7 @@ import {
 } from '../services/emailService.js';
 import { COIN_PACKAGES } from '../constants/coinPackages.js';
 import newsletterModel from "../models/newsletterModel.js";
-import { getAppointmentJoinStatus } from "../utils/appointmentTiming.js";
+import { getAppointmentJoinStatus, normalizeSlotTime, normalizeSlotDate } from "../utils/appointmentTiming.js";
 
 // API to register user
 const registerUser = async (req, res) => {
@@ -238,13 +238,17 @@ const cancelAppointment = async (req, res) => {
 
         // releasing doctor slot 
         const { docId, slotDate, slotTime, payment, amount, paidWithCoins } = appointmentData
+        const normalizedSlotDate = normalizeSlotDate(slotDate)
+        const normalizedSlotTime = normalizeSlotTime(slotTime)
 
         const doctorData = await doctorModel.findById(docId)
 
         let slots_booked = doctorData.slots_booked || {}
 
-        if (slots_booked[slotDate]) {
-            slots_booked[slotDate] = slots_booked[slotDate].filter(e => e !== slotTime)
+        if (slots_booked[normalizedSlotDate]) {
+            slots_booked[normalizedSlotDate] = slots_booked[normalizedSlotDate].filter(
+                e => normalizeSlotTime(e) !== normalizedSlotTime
+            )
             await doctorModel.findByIdAndUpdate(docId, { slots_booked })
         }
 
@@ -464,6 +468,9 @@ const bookAppointmentWithPayment = async (req, res) => {
             return res.status(400).json({ success: false, message: 'Missing required booking details' })
         }
 
+        const normalizedSlotDate = normalizeSlotDate(slotDate)
+        const normalizedSlotTime = normalizeSlotTime(slotTime)
+
         const docData = await doctorModel.findById(docId).select("-password")
         if (!docData || !docData.available) {
             return res.json({ success: false, message: 'Doctor Not Available' })
@@ -472,8 +479,8 @@ const bookAppointmentWithPayment = async (req, res) => {
         // 1. Database-level check: Verify if an active appointment already exists for docId + slotDate + slotTime
         const existingAppointment = await appointmentModel.findOne({
             docId,
-            slotDate,
-            slotTime,
+            slotDate: normalizedSlotDate,
+            slotTime: normalizedSlotTime,
             cancelled: false
         })
 
@@ -486,18 +493,19 @@ const bookAppointmentWithPayment = async (req, res) => {
 
         let slots_booked = docData.slots_booked || {}
 
-        // 2. Checking for slot availability in doctor record
-        if (slots_booked[slotDate]) {
-            if (slots_booked[slotDate].includes(slotTime)) {
-                return res.status(409).json({ 
-                    success: false, 
-                    message: 'This appointment slot has already been booked.' 
-                })
-            } else {
-                slots_booked[slotDate].push(slotTime)
-            }
+        // 2. Checking for slot availability in doctor record (checking normalized slot values)
+        const bookedListForDate = (slots_booked[normalizedSlotDate] || []).map(s => normalizeSlotTime(s))
+        if (bookedListForDate.includes(normalizedSlotTime)) {
+            return res.status(409).json({ 
+                success: false, 
+                message: 'This appointment slot has already been booked.' 
+            })
+        }
+
+        if (slots_booked[normalizedSlotDate]) {
+            slots_booked[normalizedSlotDate].push(normalizedSlotTime)
         } else {
-            slots_booked[slotDate] = [slotTime]
+            slots_booked[normalizedSlotDate] = [normalizedSlotTime]
         }
 
         const userData = await userModel.findById(userId).select("-password")
@@ -509,8 +517,8 @@ const bookAppointmentWithPayment = async (req, res) => {
             userData,
             docData,
             amount: docData.fees,
-            slotTime,
-            slotDate,
+            slotTime: normalizedSlotTime,
+            slotDate: normalizedSlotDate,
             date: Date.now()
         }
 
@@ -705,6 +713,9 @@ const bookAppointmentWithCoins = async (req, res) => {
             return res.status(400).json({ success: false, message: 'Missing required booking details' });
         }
 
+        const normalizedSlotDate = normalizeSlotDate(slotDate);
+        const normalizedSlotTime = normalizeSlotTime(slotTime);
+
         const docData = await doctorModel.findById(docId).select("-password");
         if (!docData || !docData.available) {
             return res.json({ success: false, message: 'Doctor Not Available' });
@@ -713,8 +724,8 @@ const bookAppointmentWithCoins = async (req, res) => {
         // 1. Database-level check: Verify if an active appointment already exists for docId + slotDate + slotTime
         const existingAppointment = await appointmentModel.findOne({
             docId,
-            slotDate,
-            slotTime,
+            slotDate: normalizedSlotDate,
+            slotTime: normalizedSlotTime,
             cancelled: false
         });
 
@@ -739,17 +750,18 @@ const bookAppointmentWithCoins = async (req, res) => {
         let slots_booked = docData.slots_booked || {};
 
         // 2. Check for slot availability in doctor record
-        if (slots_booked[slotDate]) {
-            if (slots_booked[slotDate].includes(slotTime)) {
-                return res.status(409).json({ 
-                    success: false, 
-                    message: 'This appointment slot has already been booked.' 
-                });
-            } else {
-                slots_booked[slotDate].push(slotTime);
-            }
+        const bookedListForDate = (slots_booked[normalizedSlotDate] || []).map(s => normalizeSlotTime(s));
+        if (bookedListForDate.includes(normalizedSlotTime)) {
+            return res.status(409).json({ 
+                success: false, 
+                message: 'This appointment slot has already been booked.' 
+            });
+        }
+
+        if (slots_booked[normalizedSlotDate]) {
+            slots_booked[normalizedSlotDate].push(normalizedSlotTime);
         } else {
-            slots_booked[slotDate] = [slotTime];
+            slots_booked[normalizedSlotDate] = [normalizedSlotTime];
         }
 
         const userData = await userModel.findById(userId).select("-password");
@@ -761,8 +773,8 @@ const bookAppointmentWithCoins = async (req, res) => {
             userData,
             docData,
             amount: docData.fees,
-            slotTime,
-            slotDate,
+            slotTime: normalizedSlotTime,
+            slotDate: normalizedSlotDate,
             date: Date.now(),
             payment: true, // Mark as paid since coins were used
             paidWithCoins: true

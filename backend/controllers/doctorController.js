@@ -6,7 +6,7 @@ import userModel from "../models/userModel.js";
 import razorpay from 'razorpay'
 import { v2 as cloudinary } from 'cloudinary';
 import { sendAppointmentCancellationEmail, sendSessionCompletedEmails } from '../services/emailService.js';
-import { getAppointmentJoinStatus } from '../utils/appointmentTiming.js';
+import { getAppointmentJoinStatus, normalizeSlotTime, normalizeSlotDate } from '../utils/appointmentTiming.js';
 
 const razorpayInstance = new razorpay({
     key_id: process.env.RAZORPAY_KEY_ID || 'rzp_test_Synr1hf0zc3IAl',
@@ -215,11 +215,40 @@ const appointmentComplete = async (req, res) => {
 
 }
 
-// API to get all doctors list for Frontend
+// API to get all doctors list for Frontend (with authoritative slots_booked computed from active appointments)
 const doctorList = async (req, res) => {
     try {
-        const doctors = await doctorModel.find({}).select(['-password', '-email']).lean()
-        res.json({ success: true, doctors })
+        const doctors = await doctorModel.find({}).select(['-password', '-email']).lean();
+
+        // Authoritative source of truth: Fetch all active (cancelled: false) appointments
+        const activeAppointments = await appointmentModel.find({ cancelled: false })
+            .select('docId slotDate slotTime')
+            .lean();
+
+        const docSlotsMap = {};
+        for (const app of activeAppointments) {
+            const dId = app.docId ? app.docId.toString() : '';
+            if (!dId) continue;
+            const sDate = normalizeSlotDate(app.slotDate);
+            const sTime = normalizeSlotTime(app.slotTime);
+
+            if (!docSlotsMap[dId]) docSlotsMap[dId] = {};
+            if (!docSlotsMap[dId][sDate]) docSlotsMap[dId][sDate] = [];
+            if (!docSlotsMap[dId][sDate].includes(sTime)) {
+                docSlotsMap[dId][sDate].push(sTime);
+            }
+        }
+
+        const updatedDoctors = doctors.map(doc => {
+            const dId = doc._id.toString();
+            const bookedSlots = docSlotsMap[dId] || {};
+            return {
+                ...doc,
+                slots_booked: bookedSlots
+            };
+        });
+
+        res.json({ success: true, doctors: updatedDoctors });
 
     } catch (error) {
         console.log(error)
