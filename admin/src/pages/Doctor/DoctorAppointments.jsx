@@ -7,6 +7,7 @@ import CustomDropdown from '../../components/ui/CustomDropdown'
 import TypewriterSearchInput from '../../components/TypewriterSearchInput'
 import DateInput from '../../components/ui/DateInput'
 import PaginationControls from '../../components/ui/PaginationControls'
+import { getAppointmentJoinStatus } from '../../utils/appointmentTiming'
 
 const doctorAppointmentPlaceholders = [
   'Search by patient name, email, ID...',
@@ -31,6 +32,16 @@ const DoctorAppointments = () => {
   const navigate = useNavigate()
 
   const defaultUserImg = "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=600&auto=format&fit=crop"
+
+  // Dynamic live clock for timing window checks
+  const [currentTime, setCurrentTime] = useState(new Date())
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setCurrentTime(new Date())
+    }, 5000)
+    return () => clearInterval(timer)
+  }, [])
 
   // Controls State
   const [searchTerm, setSearchTerm] = useState('')
@@ -389,16 +400,43 @@ const DoctorAppointments = () => {
                       {/* 6: Actions */}
                       <td className="py-4 px-5 text-right whitespace-nowrap">
                         <div className="flex items-center justify-end gap-2">
-                          {isUpcoming && (
-                            <button
-                              onClick={() => handleStartCall(item._id)}
-                              className="px-3.5 py-1.5 text-xs font-bold text-white bg-purple-600 hover:bg-purple-700 active:scale-95 rounded-xl shadow-2xs transition-all duration-150 flex items-center gap-1.5 cursor-pointer"
-                              title="Join Video Session"
-                            >
-                              <Video className="w-3.5 h-3.5" />
-                              Join
-                            </button>
-                          )}
+                          {isUpcoming && (() => {
+                            const joinStatus = getAppointmentJoinStatus(item, currentTime)
+                            if (joinStatus.canJoin) {
+                              return (
+                                <button
+                                  onClick={() => handleStartCall(item._id)}
+                                  className="px-3.5 py-1.5 text-xs font-bold text-white bg-purple-600 hover:bg-purple-700 active:scale-95 rounded-xl shadow-2xs transition-all duration-150 flex items-center gap-1.5 cursor-pointer"
+                                  title="Join Active Video Consultation"
+                                >
+                                  <Video className="w-3.5 h-3.5" />
+                                  Join
+                                </button>
+                              )
+                            } else if (joinStatus.status === 'BEFORE_WINDOW') {
+                              return (
+                                <button
+                                  disabled
+                                  className="px-3 py-1.5 text-[11px] font-bold text-purple-700 bg-purple-50 border border-purple-200/80 rounded-xl shadow-2xs transition-all flex items-center gap-1.5 cursor-not-allowed opacity-90"
+                                  title={`Room opens 10 minutes prior to session at ${joinStatus.formattedJoinTime}`}
+                                >
+                                  <Clock className="w-3 h-3 text-purple-600" />
+                                  <span>{joinStatus.formattedJoinTime}</span>
+                                </button>
+                              )
+                            } else {
+                              return (
+                                <button
+                                  disabled
+                                  className="px-3 py-1.5 text-[11px] font-bold text-slate-400 bg-slate-100 border border-slate-200 rounded-xl shadow-2xs transition-all flex items-center gap-1 cursor-not-allowed"
+                                  title="Scheduled session duration has ended"
+                                >
+                                  <Clock className="w-3 h-3 text-slate-400" />
+                                  <span>Ended</span>
+                                </button>
+                              )
+                            }
+                          })()}
 
                           {isUpcoming && (
                             <>
@@ -543,14 +581,43 @@ const DoctorAppointments = () => {
                   {/* Bottom Line: Action Buttons */}
                   {isUpcoming && (
                     <div className="flex items-center justify-between gap-2 pt-1">
-                      <button
-                        onClick={() => handleStartCall(item._id)}
-                        className="flex-1 h-10 px-4 text-xs font-bold text-white bg-purple-600 hover:bg-purple-700 active:scale-95 rounded-xl shadow-2xs transition-all flex items-center justify-center gap-1.5 cursor-pointer"
-                        title="Join Video Session"
-                      >
-                        <Video className="w-3.5 h-3.5" />
-                        Join Consultation
-                      </button>
+                      {(() => {
+                        const joinStatus = getAppointmentJoinStatus(item, currentTime)
+                        if (joinStatus.canJoin) {
+                          return (
+                            <button
+                              onClick={() => handleStartCall(item._id)}
+                              className="flex-1 h-10 px-4 text-xs font-bold text-white bg-purple-600 hover:bg-purple-700 active:scale-95 rounded-xl shadow-2xs transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+                              title="Join Video Session"
+                            >
+                              <Video className="w-3.5 h-3.5" />
+                              Join Consultation
+                            </button>
+                          )
+                        } else if (joinStatus.status === 'BEFORE_WINDOW') {
+                          return (
+                            <button
+                              disabled
+                              className="flex-1 h-10 px-3 text-[11px] font-bold text-purple-700 bg-purple-50 border border-purple-200/80 rounded-xl shadow-2xs transition-all flex items-center justify-center gap-1.5 cursor-not-allowed opacity-90"
+                              title={`Consultation opens at ${joinStatus.formattedJoinTime}`}
+                            >
+                              <Clock className="w-3.5 h-3.5 text-purple-600" />
+                              <span>{joinStatus.buttonText}</span>
+                            </button>
+                          )
+                        } else {
+                          return (
+                            <button
+                              disabled
+                              className="flex-1 h-10 px-3 text-[11px] font-bold text-slate-400 bg-slate-100 border border-slate-200 rounded-xl shadow-2xs transition-all flex items-center justify-center gap-1.5 cursor-not-allowed"
+                              title="Appointment Ended"
+                            >
+                              <Clock className="w-3.5 h-3.5 text-slate-400" />
+                              <span>Appointment Ended</span>
+                            </button>
+                          )
+                        }
+                      })()}
                       <button
                         onClick={() => cancelAppointment(item._id)}
                         className="w-10 h-10 rounded-xl border border-rose-200/70 bg-rose-50 text-rose-600 hover:bg-rose-100 hover:border-rose-300 active:scale-90 transition-all flex items-center justify-center shadow-2xs cursor-pointer shrink-0"

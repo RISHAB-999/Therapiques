@@ -15,6 +15,7 @@ export const useCallSignaling = (backendUrl, authOptions = {}) => {
   const [remoteUserInfo, setRemoteUserInfo] = useState(null)
   const [isRemoteAudioMuted, setIsRemoteAudioMuted] = useState(false)
   const [isRemoteVideoMuted, setIsRemoteVideoMuted] = useState(false)
+  const [joinError, setJoinError] = useState(null)
 
   const activeRoomIdRef = useRef(null)
   activeRoomIdRef.current = activeRoomId
@@ -216,9 +217,11 @@ export const useCallSignaling = (backendUrl, authOptions = {}) => {
       console.log('[PATIENT] socket room:join emitted for room:', appointmentId, 'socket.id:', socket.id)
       socket.emit('room:join', { appointmentId }, (response) => {
         if (!response || !response.success) {
+          setJoinError(response || { message: 'Failed to join video room' })
           toast.error(response?.message || 'Failed to join video room')
           setCallState('idle')
         } else {
+          setJoinError(null)
           console.log('[PATIENT SIGNALING] Joined room successfully:', appointmentId)
         }
       })
@@ -248,6 +251,7 @@ export const useCallSignaling = (backendUrl, authOptions = {}) => {
     setRemoteUserInfo(null)
     setIsRemoteAudioMuted(false)
     setIsRemoteVideoMuted(false)
+    setJoinError(null)
     webRTCRef.current.cleanupWebRTC()
   }, [socket])
 
@@ -276,6 +280,7 @@ export const useCallSignaling = (backendUrl, authOptions = {}) => {
     remoteUserInfo,
     isRemoteAudioMuted,
     isRemoteVideoMuted,
+    joinError,
     joinRoom,
     leaveRoom,
     localStream: webRTC.localStream,

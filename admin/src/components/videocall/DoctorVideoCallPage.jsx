@@ -223,6 +223,48 @@ function EndDialog({ onCancel, onEnd, patientName }) {
   )
 }
 
+function JoinTimingBlockedModal({ error, onBack }) {
+  if (!error) return null
+  const isBefore = error.code === 'BEFORE_WINDOW'
+  const isAfter = error.code === 'AFTER_WINDOW'
+
+  return (
+    <div className="fixed inset-0 z-[100] flex items-center justify-center px-4 bg-black/85 backdrop-blur-md">
+      <div className="anim-fade-scale w-full max-w-md bg-[#111820] border border-white/10 rounded-3xl p-7 text-center shadow-2xl">
+        <div className={`w-16 h-16 mx-auto mb-5 rounded-2xl flex items-center justify-center ${
+          isBefore ? 'bg-purple-500/15 text-purple-400' : 'bg-amber-500/15 text-amber-400'
+        }`}>
+          <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+            <circle cx="12" cy="12" r="10" />
+            <polyline points="12 6 12 12 16 14" />
+          </svg>
+        </div>
+
+        <h3 className="text-xl font-bold text-white mb-2">
+          {isBefore ? 'Consultation Room Not Open' : isAfter ? 'Appointment Ended' : 'Cannot Join Session'}
+        </h3>
+
+        <p className="text-sm text-gray-300 leading-relaxed mb-6">
+          {error.message || 'You cannot join this consultation session at this time.'}
+        </p>
+
+        {isBefore && error.availableAt && (
+          <div className="bg-purple-500/10 border border-purple-500/20 rounded-2xl p-3.5 mb-6 text-xs text-purple-300 font-semibold">
+            Joining opens 10 minutes prior to scheduled start ({error.availableAt})
+          </div>
+        )}
+
+        <button
+          onClick={onBack}
+          className="w-full py-3.5 bg-purple-600 hover:bg-purple-700 active:scale-[0.98] text-white font-bold rounded-2xl transition-all shadow-lg cursor-pointer text-sm"
+        >
+          Return to Doctor Appointments
+        </button>
+      </div>
+    </div>
+  )
+}
+
 // 4-Safe Corner Snap Calculation with Generous Laptop Margins
 function getSafeCorners(isMinimized, chatOpen) {
   const winW = typeof window !== 'undefined' ? window.innerWidth : 1000
@@ -335,6 +377,7 @@ const DoctorVideoCallPage = () => {
     socket,
     callState,
     remoteUserInfo,
+    joinError,
     joinRoom,
     leaveRoom,
     localStream,
@@ -988,6 +1031,14 @@ const DoctorVideoCallPage = () => {
           patientName={patientName}
           onCancel={() => setShowEnd(false)}
           onEnd={handleEndCall}
+        />
+      )}
+
+      {/* 9. JOIN TIMING WINDOW BLOCKED MODAL */}
+      {joinError && (
+        <JoinTimingBlockedModal
+          error={joinError}
+          onBack={handleEndCall}
         />
       )}
     </div>

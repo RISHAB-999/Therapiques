@@ -1,4 +1,5 @@
 import appointmentModel from '../models/appointmentModel.js'
+import { getAppointmentJoinStatus } from '../utils/appointmentTiming.js'
 
 export const registerVideoCallHandlers = (io, socket) => {
   const { userId, role, name, image } = socket.data || {}
@@ -25,6 +26,11 @@ export const registerVideoCallHandlers = (io, socket) => {
         return
       }
 
+      if (appointment.isCompleted) {
+        if (callback) callback({ success: false, message: 'This appointment has already been completed' })
+        return
+      }
+
       // Verify user is authorized participant (either patient or doctor)
       if (role === 'user' && String(appointment.userId) !== String(userId)) {
         console.warn(`[Room Authorization Failed] User ${userId} not authorized for appointment ${appointmentId}`)
@@ -34,6 +40,22 @@ export const registerVideoCallHandlers = (io, socket) => {
       if (role === 'doctor' && String(appointment.docId) !== String(userId)) {
         console.warn(`[Room Authorization Failed] Doctor ${userId} not authorized for appointment ${appointmentId}`)
         if (callback) callback({ success: false, message: 'Unauthorized doctor appointment access' })
+        return
+      }
+
+      // Authoritative Join-Time Window Validation (10 min before to end of appointment)
+      const timingStatus = getAppointmentJoinStatus(appointment)
+      if (!timingStatus.canJoin) {
+        console.warn(`[Room Time Window Blocked] Room ${appointmentId} rejected for ${name} (${role}): ${timingStatus.reason}`)
+        if (callback) {
+          callback({
+            success: false,
+            code: timingStatus.status,
+            message: timingStatus.reason,
+            availableAt: timingStatus.formattedJoinTime,
+            timingStatus
+          })
+        }
         return
       }
 

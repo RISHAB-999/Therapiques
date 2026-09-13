@@ -6,6 +6,7 @@ import userModel from "../models/userModel.js";
 import razorpay from 'razorpay'
 import { v2 as cloudinary } from 'cloudinary';
 import { sendAppointmentCancellationEmail, sendSessionCompletedEmails } from '../services/emailService.js';
+import { getAppointmentJoinStatus } from '../utils/appointmentTiming.js';
 
 const razorpayInstance = new razorpay({
     key_id: process.env.RAZORPAY_KEY_ID || 'rzp_test_Synr1hf0zc3IAl',
@@ -426,6 +427,48 @@ const generateCallTicket = async (req, res) => {
     }
 }
 
+// API to verify join eligibility for doctor
+const verifyAppointmentJoinDoctor = async (req, res) => {
+    try {
+        const docId = req.docId || req.body.docId;
+        const appointmentId = req.params.appointmentId || req.body.appointmentId;
+
+        if (!appointmentId) {
+            return res.json({ success: false, canJoin: false, message: 'Appointment ID required' });
+        }
+
+        const appointment = await appointmentModel.findById(appointmentId);
+        if (!appointment) {
+            return res.json({ success: false, canJoin: false, message: 'Appointment not found' });
+        }
+
+        if (String(appointment.docId) !== String(docId)) {
+            return res.json({ success: false, canJoin: false, message: 'Unauthorized appointment access' });
+        }
+
+        const timingStatus = getAppointmentJoinStatus(appointment);
+        return res.json({
+            success: true,
+            canJoin: timingStatus.canJoin,
+            status: timingStatus.status,
+            availableAt: timingStatus.formattedJoinTime,
+            startTime: timingStatus.formattedStartTime,
+            reason: timingStatus.reason,
+            appointment: {
+                _id: appointment._id,
+                slotDate: appointment.slotDate,
+                slotTime: appointment.slotTime,
+                cancelled: appointment.cancelled,
+                isCompleted: appointment.isCompleted,
+                userData: appointment.userData
+            }
+        });
+    } catch (error) {
+        console.log('verifyAppointmentJoinDoctor error:', error);
+        res.json({ success: false, canJoin: false, message: error.message });
+    }
+};
+
 export {
     loginDoctor,
     appointmentsDoctor,
@@ -436,5 +479,6 @@ export {
     doctorDashboard,
     doctorProfile,
     updateDoctorProfile,
-    generateCallTicket
+    generateCallTicket,
+    verifyAppointmentJoinDoctor
 }

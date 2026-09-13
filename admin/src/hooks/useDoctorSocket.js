@@ -15,6 +15,7 @@ export const useDoctorSocket = (backendUrl, dToken) => {
   const [remoteUserInfo, setRemoteUserInfo] = useState(null)
   const [isRemoteAudioMuted, setIsRemoteAudioMuted] = useState(false)
   const [isRemoteVideoMuted, setIsRemoteVideoMuted] = useState(false)
+  const [joinError, setJoinError] = useState(null)
 
   const activeRoomIdRef = useRef(null)
   activeRoomIdRef.current = activeRoomId
@@ -38,7 +39,7 @@ export const useDoctorSocket = (backendUrl, dToken) => {
     const handleUserJoined = async ({ name, image, role }) => {
       console.log('[DOCTOR SIGNALING Admin] Peer joined room:', name, role)
       setRemoteUserInfo({ name, image, role })
-      toast.info(`${name || 'Patient'} joined room! Connecting video...`)
+      toast.info(`${name || 'Patient'} joined the consultation! Connecting video...`)
 
       const room = activeRoomIdRef.current || activeRoomId
       if (!room) {
@@ -203,10 +204,12 @@ export const useDoctorSocket = (backendUrl, dToken) => {
 
     const doJoin = () => {
       socket.emit('room:join', { appointmentId }, (response) => {
-        if (!response.success) {
-          toast.error(response.message || 'Failed to join video room')
+        if (!response || !response.success) {
+          setJoinError(response || { message: 'Failed to join video room' })
+          toast.error(response?.message || 'Failed to join video room')
           setCallState('idle')
         } else {
+          setJoinError(null)
           console.log('[DOCTOR SIGNALING Admin] Joined room:', appointmentId)
         }
       })
@@ -231,6 +234,7 @@ export const useDoctorSocket = (backendUrl, dToken) => {
     setRemoteUserInfo(null)
     setIsRemoteAudioMuted(false)
     setIsRemoteVideoMuted(false)
+    setJoinError(null)
     webRTCRef.current.cleanupWebRTC()
   }, [socket])
 
@@ -259,6 +263,7 @@ export const useDoctorSocket = (backendUrl, dToken) => {
     remoteUserInfo,
     isRemoteAudioMuted,
     isRemoteVideoMuted,
+    joinError,
     joinRoom,
     leaveRoom,
     localStream: webRTC.localStream,

@@ -22,6 +22,7 @@ import {
 } from '../services/emailService.js';
 import { COIN_PACKAGES } from '../constants/coinPackages.js';
 import newsletterModel from "../models/newsletterModel.js";
+import { getAppointmentJoinStatus } from "../utils/appointmentTiming.js";
 
 // API to register user
 const registerUser = async (req, res) => {
@@ -1136,6 +1137,48 @@ const subscribeNewsletter = async (req, res) => {
     }
 };
 
+// API to check/verify join eligibility for user
+const verifyAppointmentJoinUser = async (req, res) => {
+    try {
+        const userId = req.body.userId;
+        const appointmentId = req.params.appointmentId || req.body.appointmentId;
+
+        if (!appointmentId) {
+            return res.json({ success: false, canJoin: false, message: 'Appointment ID required' });
+        }
+
+        const appointment = await appointmentModel.findById(appointmentId);
+        if (!appointment) {
+            return res.json({ success: false, canJoin: false, message: 'Appointment not found' });
+        }
+
+        if (String(appointment.userId) !== String(userId)) {
+            return res.json({ success: false, canJoin: false, message: 'Unauthorized appointment access' });
+        }
+
+        const timingStatus = getAppointmentJoinStatus(appointment);
+        return res.json({
+            success: true,
+            canJoin: timingStatus.canJoin,
+            status: timingStatus.status,
+            availableAt: timingStatus.formattedJoinTime,
+            startTime: timingStatus.formattedStartTime,
+            reason: timingStatus.reason,
+            appointment: {
+                _id: appointment._id,
+                slotDate: appointment.slotDate,
+                slotTime: appointment.slotTime,
+                cancelled: appointment.cancelled,
+                isCompleted: appointment.isCompleted,
+                docData: appointment.docData
+            }
+        });
+    } catch (error) {
+        console.log('verifyAppointmentJoinUser error:', error);
+        res.json({ success: false, canJoin: false, message: error.message });
+    }
+};
+
 export { 
     registerUser, 
     loginUser, 
@@ -1158,5 +1201,6 @@ export {
     getUserOrders,
     getSingleOrder,
     updateOrderStatus,
-    subscribeNewsletter
+    subscribeNewsletter,
+    verifyAppointmentJoinUser
 }
