@@ -6,7 +6,7 @@ import RelatedDoctors from '../components/RelatedDoctors'
 import axios from 'axios'
 import { toast } from 'react-toastify'
 import { loadRazorpay } from '../utils/loadRazorpay'
-import { normalizeSlotTime, normalizeSlotDate } from '../utils/appointmentTiming'
+import { normalizeSlotTime, normalizeSlotDate, getAppointmentTimeRange } from '../utils/appointmentTiming'
 
 const Appointments = () => {
   const { docId } = useParams()
@@ -32,65 +32,67 @@ const Appointments = () => {
       return
     }
 
-    //geting current date
+    const SESSION_DURATION_MINUTES = 60; // 60 minutes therapy session
+    const BUFFER_MINUTES = 30;           // 30 minutes therapist mandatory break
+    const STEP_INTERVAL_MINUTES = SESSION_DURATION_MINUTES + BUFFER_MINUTES; // 90 minutes
+
     let today = new Date()
     let allSlots = []
 
     for (let i = 0; i < 7; i++) {
+      let dayStart = new Date(today)
+      dayStart.setDate(today.getDate() + i)
+      dayStart.setHours(10, 0, 0, 0) // Workday starts at 10:00 AM
 
-      //getting date with index
-      let currentDate = new Date(today)
-      currentDate.setDate(today.getDate() + i)
-
-      // setting end time of the date with index
-      let endTime = new Date()
-      endTime.setDate(today.getDate() + i)
-      endTime.setHours(21, 0, 0, 0)
-
-      // setting hours
-      if (today.getDate() === currentDate.getDate()) {
-        currentDate.setHours(currentDate.getHours() > 10 ? currentDate.getHours() + 1 : 10)
-        currentDate.setMinutes(currentDate.getMinutes() > 30 ? 30 : 0)
-      } else {
-        currentDate.setHours(10)
-        currentDate.setMinutes(0)
-      }
+      let dayEnd = new Date(today)
+      dayEnd.setDate(today.getDate() + i)
+      dayEnd.setHours(21, 0, 0, 0) // Workday ends at 9:00 PM (21:00)
 
       let timeSlots = []
+      let currentSlot = new Date(dayStart)
 
-      while (currentDate < endTime) {
-        // Deterministic 12-hour time format with leading zeros: e.g. "08:30 PM", "10:00 AM"
-        const hours = currentDate.getHours();
-        const minutes = currentDate.getMinutes();
-        const period = hours >= 12 ? 'PM' : 'AM';
-        const hour12 = hours % 12 === 0 ? 12 : hours % 12;
-        const formattedTime = `${String(hour12).padStart(2, '0')}:${String(minutes).padStart(2, '0')} ${period}`;
+      while (currentSlot < dayEnd) {
+        // Session ends at currentSlot + 60 minutes
+        const sessionEnd = new Date(currentSlot.getTime() + SESSION_DURATION_MINUTES * 60 * 1000)
 
-        let day = currentDate.getDate()
-        let month = currentDate.getMonth() + 1
-        let year = currentDate.getFullYear()
+        // Only generate the slot if the 60-minute therapy session fits completely inside working hours
+        if (sessionEnd <= dayEnd) {
+          // If viewing today, filter out past slots (allow 10-minute booking grace)
+          const isPast = (i === 0 && currentSlot.getTime() <= (today.getTime() - 5 * 60 * 1000))
 
-        const slotDate = `${day}_${month}_${year}`
-        const slotTime = formattedTime
+          if (!isPast) {
+            const hours = currentSlot.getHours()
+            const minutes = currentSlot.getMinutes()
+            const period = hours >= 12 ? 'PM' : 'AM'
+            const hour12 = hours % 12 === 0 ? 12 : hours % 12
+            const formattedTime = `${String(hour12).padStart(2, '0')}:${String(minutes).padStart(2, '0')} ${period}`
 
-        const bookedListForDate = (docInfo.slots_booked && docInfo.slots_booked[slotDate])
-          ? docInfo.slots_booked[slotDate].map(s => normalizeSlotTime(s))
-          : [];
+            let day = currentSlot.getDate()
+            let month = currentSlot.getMonth() + 1
+            let year = currentSlot.getFullYear()
 
-        const isBooked = bookedListForDate.includes(normalizeSlotTime(slotTime));
+            const slotDate = `${day}_${month}_${year}`
+            const slotTimeStr = formattedTime
 
-        // Add all slots with availability status
-        timeSlots.push({
-          datetime: new Date(currentDate),
-          time: formattedTime,
-          isBooked
-        })
+            const bookedListForDate = (docInfo.slots_booked && docInfo.slots_booked[slotDate])
+              ? docInfo.slots_booked[slotDate].map(s => normalizeSlotTime(s))
+              : []
 
-        // Increment current time by 30 min
-        currentDate.setMinutes(currentDate.getMinutes() + 30)
+            const isBooked = bookedListForDate.includes(normalizeSlotTime(slotTimeStr))
+
+            timeSlots.push({
+              datetime: new Date(currentSlot),
+              time: formattedTime,
+              duration: SESSION_DURATION_MINUTES,
+              isBooked
+            })
+          }
+        }
+
+        // Increment to next slot start by 90 minutes (60 min session + 30 min buffer)
+        currentSlot.setMinutes(currentSlot.getMinutes() + STEP_INTERVAL_MINUTES)
       }
 
-      // Store the date and slots for this day
       const dayDate = new Date(today)
       dayDate.setDate(today.getDate() + i)
 
@@ -333,7 +335,15 @@ const Appointments = () => {
       {/* -------- Booking Slots Section (Only shown if doctor is Available) -------- */}
       {docInfo.available ? (
         <div className='sm:ml-72 sm:pl-4 mt-4 font-medium text-gray-700'>
-          <p>Booking slots</p>
+          <div className='flex flex-wrap items-center justify-between gap-2 mb-1'>
+            <p className='text-base font-bold text-gray-900'>Booking slots</p>
+            <span className='inline-flex items-center gap-1.5 bg-[#FAF5EE] text-[#6b4c3b] border border-[#EADBCE] text-[11px] sm:text-xs font-semibold px-3 py-1 rounded-full shadow-2xs'>
+              <span>⏱️ 60 Min Therapy Session</span>
+              <span className='text-gray-300'>•</span>
+              <span>30 Min Buffer</span>
+            </span>
+          </div>
+
           <div className='flex gap-3 items-center w-full overflow-x-scroll hide-scrollbar mt-2 py-2.5'>
             {
               docSlots.length > 0 && docSlots.map((item, index) => (
@@ -385,6 +395,16 @@ const Appointments = () => {
               <p className='text-sm text-gray-500 py-2'>No booking slots available for this day.</p>
             )}
           </div>
+
+          {/* Selected Slot Time Range Confirmation Indicator */}
+          {slotTime && (
+            <div className='mt-2.5 inline-flex items-center gap-2 bg-[#F5F3FF] border border-[#DDD6FE] text-[#7C3AED] px-3.5 py-1.5 rounded-xl text-xs font-semibold'>
+              <span>Selected Consultation Window:</span>
+              <span className='font-bold underline'>{getAppointmentTimeRange(slotTime, 60)}</span>
+              <span className='text-purple-400'>•</span>
+              <span className='text-[11px] text-purple-600 font-medium'>60 min session</span>
+            </div>
+          )}
 
           {/* Payment Method Selection */}
           {slotTime && (

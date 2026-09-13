@@ -7,6 +7,57 @@
  * - Outside this window, joining is strictly prohibited.
  */
 
+/**
+ * Canonical Slot Time Normalizer:
+ * Converts any time string (e.g. "20:30", "8:30 pm", "08:30 PM", "8:30") into standard format "08:30 PM".
+ */
+export const normalizeSlotTime = (timeStr) => {
+  if (!timeStr) return '';
+  const str = String(timeStr).trim();
+  const match = str.match(/^(\d{1,2}):(\d{2})(?:\s*([a-zA-Z]+))?$/i);
+  if (!match) return str;
+
+  let hours = parseInt(match[1], 10);
+  const minutes = parseInt(match[2], 10);
+  const modifier = match[3] ? match[3].toUpperCase() : null;
+
+  if (modifier === 'PM' && hours < 12) {
+    hours += 12;
+  } else if (modifier === 'AM' && hours === 12) {
+    hours = 0;
+  }
+
+  const period = hours >= 12 ? 'PM' : 'AM';
+  const hour12 = hours % 12 === 0 ? 12 : hours % 12;
+  const formattedHour = String(hour12).padStart(2, '0');
+  const formattedMinute = String(minutes).padStart(2, '0');
+  return `${formattedHour}:${formattedMinute} ${period}`;
+};
+
+/**
+ * Canonical Slot Date Normalizer:
+ * Converts any date string (e.g. "13_9_2026", "13-09-2026", "2026-09-13") into standard format "13_9_2026".
+ */
+export const normalizeSlotDate = (dateStr) => {
+  if (!dateStr) return '';
+  const str = String(dateStr).trim();
+  if (str.includes('_')) {
+    const parts = str.split('_').map((p) => parseInt(p, 10));
+    if (parts.length >= 3 && !isNaN(parts[0]) && !isNaN(parts[1]) && !isNaN(parts[2])) {
+      return `${parts[0]}_${parts[1]}_${parts[2]}`;
+    }
+  } else if (str.includes('-')) {
+    const parts = str.split('-').map((p) => parseInt(p, 10));
+    if (parts.length >= 3 && !isNaN(parts[0]) && !isNaN(parts[1]) && !isNaN(parts[2])) {
+      if (parts[0] > 1000) {
+        return `${parts[2]}_${parts[1]}_${parts[0]}`;
+      }
+      return `${parts[0]}_${parts[1]}_${parts[2]}`;
+    }
+  }
+  return str;
+};
+
 export const parseAppointmentDateTime = (slotDate, slotTime) => {
   if (!slotDate || !slotTime) return null;
 
@@ -55,11 +106,17 @@ export const parseAppointmentDateTime = (slotDate, slotTime) => {
 
 export const formatTimeOnly = (date) => {
   if (!date || isNaN(date.getTime())) return '';
-  return date.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', hour12: true });
+  const hours = date.getHours();
+  const minutes = date.getMinutes();
+  const period = hours >= 12 ? 'PM' : 'AM';
+  const hour12 = hours % 12 === 0 ? 12 : hours % 12;
+  const formattedHour = String(hour12).padStart(2, '0');
+  const formattedMinute = String(minutes).padStart(2, '0');
+  return `${formattedHour}:${formattedMinute} ${period}`;
 };
 
 /**
- * Calculates appointment window and UI eligibility state for Doctor view.
+ * Calculates appointment window and eligibility for Doctor / Admin panels.
  *
  * @param {Object} appointment
  * @param {Date|number} [currentDate=new Date()]
@@ -72,7 +129,7 @@ export const getAppointmentJoinStatus = (appointment, currentDate = new Date()) 
       status: 'INVALID',
       buttonText: 'Invalid Appointment',
       badgeText: 'Invalid',
-      reason: 'Appointment details not available'
+      reason: 'Appointment data is missing'
     };
   }
 
@@ -107,7 +164,7 @@ export const getAppointmentJoinStatus = (appointment, currentDate = new Date()) 
     };
   }
 
-  const durationMinutes = appointment.duration || 30;
+  const durationMinutes = appointment.duration || 60;
   const endTime = new Date(startTime.getTime() + durationMinutes * 60 * 1000);
   const joinStartTime = new Date(startTime.getTime() - 10 * 60 * 1000); // 10 min before
 
@@ -133,8 +190,8 @@ export const getAppointmentJoinStatus = (appointment, currentDate = new Date()) 
     };
   }
 
-  // 2. Active Join Window (between 10 mins before start and end time)
-  if (now >= joinStartTime.getTime() && now <= endTime.getTime()) {
+  // 2. Active Join Window (between 10 mins before start and end time, strictly now < endTime)
+  if (now >= joinStartTime.getTime() && now < endTime.getTime()) {
     return {
       canJoin: true,
       status: 'JOIN_WINDOW',
@@ -149,7 +206,7 @@ export const getAppointmentJoinStatus = (appointment, currentDate = new Date()) 
     };
   }
 
-  // 3. After Appointment Ended
+  // 3. After Appointment Ended (at or after appointmentEnd, buffer is not part of video call)
   return {
     canJoin: false,
     status: 'AFTER_WINDOW',
@@ -162,4 +219,30 @@ export const getAppointmentJoinStatus = (appointment, currentDate = new Date()) 
     formattedStartTime: formatTimeOnly(startTime),
     reason: 'The scheduled appointment time has ended'
   };
+};
+
+/**
+ * Formats appointment time range: e.g. "10:00 AM – 11:00 AM"
+ */
+export const getAppointmentTimeRange = (slotTime, durationMinutes = 60) => {
+  if (!slotTime) return '';
+  const parsed = parseAppointmentDateTime('1_1_2000', slotTime);
+  if (!parsed) return slotTime;
+  const end = new Date(parsed.getTime() + durationMinutes * 60 * 1000);
+  return `${normalizeSlotTime(slotTime)} – ${formatTimeOnly(end)}`;
+};
+
+/**
+ * Checks whether two slot times overlap considering 60-min session + 30-min buffer (90-min total reserved block).
+ */
+export const checkSlotConflict = (timeA, timeB, sessionDuration = 60, buffer = 30) => {
+  const startA = parseAppointmentDateTime('1_1_2000', timeA);
+  const startB = parseAppointmentDateTime('1_1_2000', timeB);
+  if (!startA || !startB) return false;
+
+  const totalReservedMs = (sessionDuration + buffer) * 60 * 1000;
+  const endA = new Date(startA.getTime() + totalReservedMs);
+  const endB = new Date(startB.getTime() + totalReservedMs);
+
+  return (startA.getTime() < endB.getTime()) && (endA.getTime() > startB.getTime());
 };

@@ -22,7 +22,7 @@ import {
 } from '../services/emailService.js';
 import { COIN_PACKAGES } from '../constants/coinPackages.js';
 import newsletterModel from "../models/newsletterModel.js";
-import { getAppointmentJoinStatus, normalizeSlotTime, normalizeSlotDate } from "../utils/appointmentTiming.js";
+import { getAppointmentJoinStatus, normalizeSlotTime, normalizeSlotDate, checkSlotConflict } from "../utils/appointmentTiming.js";
 
 // API to register user
 const registerUser = async (req, res) => {
@@ -476,18 +476,21 @@ const bookAppointmentWithPayment = async (req, res) => {
             return res.json({ success: false, message: 'Doctor Not Available' })
         }
 
-        // 1. Database-level check: Verify if an active appointment already exists for docId + slotDate + slotTime
-        const existingAppointment = await appointmentModel.findOne({
+        // 1. Database-level check: Verify if an active appointment already exists or conflicts (60-min session + 30-min buffer)
+        const activeAppointments = await appointmentModel.find({
             docId,
             slotDate: normalizedSlotDate,
-            slotTime: normalizedSlotTime,
             cancelled: false
         })
 
-        if (existingAppointment) {
+        const hasConflict = activeAppointments.some(app => 
+            checkSlotConflict(app.slotTime, normalizedSlotTime, 60, 30)
+        )
+
+        if (hasConflict) {
             return res.status(409).json({ 
                 success: false, 
-                message: 'This appointment slot has already been booked.' 
+                message: 'This appointment slot or buffer time has already been booked.' 
             })
         }
 
@@ -517,6 +520,7 @@ const bookAppointmentWithPayment = async (req, res) => {
             userData,
             docData,
             amount: docData.fees,
+            duration: 60,
             slotTime: normalizedSlotTime,
             slotDate: normalizedSlotDate,
             date: Date.now()
@@ -721,18 +725,21 @@ const bookAppointmentWithCoins = async (req, res) => {
             return res.json({ success: false, message: 'Doctor Not Available' });
         }
 
-        // 1. Database-level check: Verify if an active appointment already exists for docId + slotDate + slotTime
-        const existingAppointment = await appointmentModel.findOne({
+        // 1. Database-level check: Verify if an active appointment already exists or conflicts (60-min session + 30-min buffer)
+        const activeAppointments = await appointmentModel.find({
             docId,
             slotDate: normalizedSlotDate,
-            slotTime: normalizedSlotTime,
             cancelled: false
         });
 
-        if (existingAppointment) {
+        const hasConflict = activeAppointments.some(app => 
+            checkSlotConflict(app.slotTime, normalizedSlotTime, 60, 30)
+        );
+
+        if (hasConflict) {
             return res.status(409).json({ 
                 success: false, 
-                message: 'This appointment slot has already been booked.' 
+                message: 'This appointment slot or buffer time has already been booked.' 
             });
         }
 
@@ -773,6 +780,7 @@ const bookAppointmentWithCoins = async (req, res) => {
             userData,
             docData,
             amount: docData.fees,
+            duration: 60,
             slotTime: normalizedSlotTime,
             slotDate: normalizedSlotDate,
             date: Date.now(),

@@ -8,7 +8,7 @@ import { Calendar, Clock, MapPin, Video, XCircle, CheckCircle2, AlertCircle } fr
 import ReceiptModal from '../components/ReceiptModal'
 import PaginationControls from '../components/PaginationControls'
 import { slotDateFormat } from '../utils/dateFormatter'
-import { getAppointmentJoinStatus } from '../utils/appointmentTiming'
+import { getAppointmentJoinStatus, getAppointmentTimeRange } from '../utils/appointmentTiming'
 
 const TokenCoinSVG = ({ className = "w-3.5 h-3.5" }) => (
   <svg className={className} viewBox="0 0 24 24" fill="none">
@@ -239,7 +239,7 @@ const MyAppointments = () => {
                     </div>
 
                     {/* Date & Time Pill Container (Theme Harmonized) */}
-                    <div className='inline-flex items-center gap-2.5 text-xs sm:text-sm text-gray-800 font-medium bg-[#FDF7F3] border border-[#EADBCE] px-4 py-1.5 rounded-full shadow-2xs mx-auto sm:mx-0'>
+                    <div className='inline-flex flex-wrap items-center gap-2 text-xs sm:text-sm text-gray-800 font-medium bg-[#FDF7F3] border border-[#EADBCE] px-4 py-1.5 rounded-full shadow-2xs mx-auto sm:mx-0'>
                       <span className='flex items-center gap-1.5 text-gray-700'>
                         <Calendar className='w-3.5 h-3.5 sm:w-4 sm:h-4 text-gray-500 shrink-0' />
                         <span className='font-semibold'>{slotDateFormat(item.slotDate)}</span>
@@ -247,7 +247,10 @@ const MyAppointments = () => {
                       <span className='text-gray-300'>|</span>
                       <span className='flex items-center gap-1.5 text-[#7C3AED] font-bold'>
                         <Clock className='w-3.5 h-3.5 sm:w-4 sm:h-4 text-[#7C3AED] shrink-0' />
-                        <span>{item.slotTime}</span>
+                        <span>{getAppointmentTimeRange(item.slotTime, item.duration || 60)}</span>
+                      </span>
+                      <span className='text-[10px] uppercase font-bold tracking-wider bg-purple-100 text-[#7C3AED] px-1.5 py-0.5 rounded-md'>
+                        {item.duration || 60} min
                       </span>
                     </div>
 
