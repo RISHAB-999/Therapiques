@@ -459,29 +459,48 @@ const verifyRazorpay = async (req, res) => {
 const bookAppointmentWithPayment = async (req, res) => {
     try {
         const { userId, docId, slotDate, slotTime } = req.body
-        const docData = await doctorModel.findById(docId).select("-password")
 
-        if (!docData.available) {
+        if (!userId || !docId || !slotDate || !slotTime) {
+            return res.status(400).json({ success: false, message: 'Missing required booking details' })
+        }
+
+        const docData = await doctorModel.findById(docId).select("-password")
+        if (!docData || !docData.available) {
             return res.json({ success: false, message: 'Doctor Not Available' })
         }
 
-        let slots_booked = docData.slots_booked
+        // 1. Database-level check: Verify if an active appointment already exists for docId + slotDate + slotTime
+        const existingAppointment = await appointmentModel.findOne({
+            docId,
+            slotDate,
+            slotTime,
+            cancelled: false
+        })
 
-        // checking for slot availablity 
+        if (existingAppointment) {
+            return res.status(409).json({ 
+                success: false, 
+                message: 'This appointment slot has already been booked.' 
+            })
+        }
+
+        let slots_booked = docData.slots_booked || {}
+
+        // 2. Checking for slot availability in doctor record
         if (slots_booked[slotDate]) {
             if (slots_booked[slotDate].includes(slotTime)) {
-                return res.json({ success: false, message: 'Slot Not Available' })
-            }
-            else {
+                return res.status(409).json({ 
+                    success: false, 
+                    message: 'This appointment slot has already been booked.' 
+                })
+            } else {
                 slots_booked[slotDate].push(slotTime)
             }
         } else {
-            slots_booked[slotDate] = []
-            slots_booked[slotDate].push(slotTime)
+            slots_booked[slotDate] = [slotTime]
         }
 
         const userData = await userModel.findById(userId).select("-password")
-
         delete docData.slots_booked
 
         const appointmentData = {
@@ -496,15 +515,27 @@ const bookAppointmentWithPayment = async (req, res) => {
         }
 
         const newAppointment = new appointmentModel(appointmentData)
-        await newAppointment.save()
 
-        // save new slots data in docData
+        // Save appointment with atomic partial unique index protection
+        try {
+            await newAppointment.save()
+        } catch (saveErr) {
+            if (saveErr.code === 11000 || saveErr.message?.includes('E11000')) {
+                return res.status(409).json({ 
+                    success: false, 
+                    message: 'This appointment slot has already been booked.' 
+                })
+            }
+            throw saveErr
+        }
+
+        // Save new slots data in docData
         await doctorModel.findByIdAndUpdate(docId, { slots_booked })
 
         // Create Razorpay order for immediate payment
         const options = {
             amount: docData.fees * 100,
-            currency: process.env.CURRENCY,
+            currency: process.env.CURRENCY || 'INR',
             receipt: newAppointment._id.toString(),
         }
 
@@ -514,6 +545,12 @@ const bookAppointmentWithPayment = async (req, res) => {
 
     } catch (error) {
         console.log(error)
+        if (error.code === 11000 || error.message?.includes('E11000')) {
+            return res.status(409).json({ 
+                success: false, 
+                message: 'This appointment slot has already been booked.' 
+            })
+        }
         res.json({ success: false, message: error.message })
     }
 }
@@ -663,10 +700,29 @@ const verifyCoinsPayment = async (req, res) => {
 const bookAppointmentWithCoins = async (req, res) => {
     try {
         const { userId, docId, slotDate, slotTime } = req.body;
-        const docData = await doctorModel.findById(docId).select("-password");
 
-        if (!docData.available) {
+        if (!userId || !docId || !slotDate || !slotTime) {
+            return res.status(400).json({ success: false, message: 'Missing required booking details' });
+        }
+
+        const docData = await doctorModel.findById(docId).select("-password");
+        if (!docData || !docData.available) {
             return res.json({ success: false, message: 'Doctor Not Available' });
+        }
+
+        // 1. Database-level check: Verify if an active appointment already exists for docId + slotDate + slotTime
+        const existingAppointment = await appointmentModel.findOne({
+            docId,
+            slotDate,
+            slotTime,
+            cancelled: false
+        });
+
+        if (existingAppointment) {
+            return res.status(409).json({ 
+                success: false, 
+                message: 'This appointment slot has already been booked.' 
+            });
         }
 
         const user = await userModel.findById(userId);
@@ -680,18 +736,20 @@ const bookAppointmentWithCoins = async (req, res) => {
             });
         }
 
-        let slots_booked = docData.slots_booked;
+        let slots_booked = docData.slots_booked || {};
 
-        // Check for slot availability 
+        // 2. Check for slot availability in doctor record
         if (slots_booked[slotDate]) {
             if (slots_booked[slotDate].includes(slotTime)) {
-                return res.json({ success: false, message: 'Slot Not Available' });
+                return res.status(409).json({ 
+                    success: false, 
+                    message: 'This appointment slot has already been booked.' 
+                });
             } else {
                 slots_booked[slotDate].push(slotTime);
             }
         } else {
-            slots_booked[slotDate] = [];
-            slots_booked[slotDate].push(slotTime);
+            slots_booked[slotDate] = [slotTime];
         }
 
         const userData = await userModel.findById(userId).select("-password");
@@ -711,7 +769,19 @@ const bookAppointmentWithCoins = async (req, res) => {
         };
 
         const newAppointment = new appointmentModel(appointmentData);
-        await newAppointment.save();
+
+        // Save appointment with atomic partial unique index protection
+        try {
+            await newAppointment.save();
+        } catch (saveErr) {
+            if (saveErr.code === 11000 || saveErr.message?.includes('E11000')) {
+                return res.status(409).json({ 
+                    success: false, 
+                    message: 'This appointment slot has already been booked.' 
+                });
+            }
+            throw saveErr;
+        }
 
         // Deduct coins from user account
         user.therapiqueCoins -= appointmentCost;
@@ -750,6 +820,12 @@ const bookAppointmentWithCoins = async (req, res) => {
 
     } catch (error) {
         console.log(error);
+        if (error.code === 11000 || error.message?.includes('E11000')) {
+            return res.status(409).json({ 
+                success: false, 
+                message: 'This appointment slot has already been booked.' 
+            });
+        }
         res.json({ success: false, message: error.message });
     }
 };

@@ -67,16 +67,14 @@ const Appointments = () => {
         const slotDate = day + "_" + month + "_" + year
         const slotTime = formattedTime
 
-        const isSlotAvailable = docInfo.slots_booked[slotDate] && docInfo.slots_booked[slotDate].includes(slotTime) ? false : true
+        const isBooked = Boolean(docInfo.slots_booked && docInfo.slots_booked[slotDate] && docInfo.slots_booked[slotDate].includes(slotTime))
 
-        if (isSlotAvailable) {
-
-          // Add slot to array
-          timeSlots.push({
-            datetime: new Date(currentDate),
-            time: formattedTime
-          })
-        }
+        // Add all slots with availability status
+        timeSlots.push({
+          datetime: new Date(currentDate),
+          time: formattedTime,
+          isBooked
+        })
 
         // Increment current time by 30 min
         currentDate.setMinutes(currentDate.getMinutes() + 30)
@@ -107,6 +105,10 @@ const Appointments = () => {
       return navigate('/login')
     }
 
+    if (!docSlots[slotIndex]) {
+      return toast.error('Please select an appointment date')
+    }
+
     const date = docSlots[slotIndex].date
 
     let day = date.getDate()
@@ -114,6 +116,15 @@ const Appointments = () => {
     let year = date.getFullYear()
 
     const slotDate = day + "_" + month + "_" + year
+
+    // Verify selected slot is not already booked in local state
+    const currentSlotObj = docSlots[slotIndex]?.slots?.find(s => s.time === slotTime)
+    if (currentSlotObj && currentSlotObj.isBooked) {
+      toast.error('This appointment slot has already been booked. Please choose another time.')
+      getDoctorData()
+      setSlotTime('')
+      return
+    }
 
     try {
       let data;
@@ -132,6 +143,8 @@ const Appointments = () => {
           navigate('/my-appointments')
         } else {
           toast.error(data.message)
+          getDoctorData()
+          setSlotTime('')
         }
       } else {
         // Book with Razorpay payment
@@ -145,12 +158,17 @@ const Appointments = () => {
           initPay(data.order, data.appointmentId)
         } else {
           toast.error(data.message)
+          getDoctorData()
+          setSlotTime('')
         }
       }
 
     } catch (error) {
       console.log(error)
-      toast.error(error.message)
+      const errorMsg = error.response?.data?.message || (error.response?.status === 409 ? 'This slot was just booked by another patient. Please select another time.' : error.message)
+      toast.error(errorMsg)
+      getDoctorData()
+      setSlotTime('')
     }
 
   }
@@ -212,14 +230,21 @@ const Appointments = () => {
   }, [doctors, docId])
 
   useEffect(() => {
-    getAvailableSlots()
-  }, [docInfo])
-
-  useEffect(() => {
     if (docInfo) {
       getAvailableSlots()
     }
   }, [docInfo])
+
+  // Deselect slotTime if the selected slot is already booked on the active day
+  useEffect(() => {
+    if (slotTime && docSlots[slotIndex]?.slots) {
+      const selectedSlot = docSlots[slotIndex].slots.find(s => s.time === slotTime)
+      if (selectedSlot && selectedSlot.isBooked) {
+        setSlotTime('')
+      }
+    }
+  }, [slotIndex, docSlots])
+
   return docInfo && (
     <div>
       {/* -------- Doctor Details -------- */}
@@ -300,16 +325,37 @@ const Appointments = () => {
           </div>
 
           <div className='flex items-center gap-3 w-full overflow-x-scroll hide-scrollbar mt-3 py-2'>
-            {docSlots.length > 0 && docSlots[slotIndex].slots.length > 0 ? (
-              docSlots[slotIndex].slots.map((item, index) => (
-                <p onClick={() => setSlotTime(item.time)} className={`text-sm flex-shrink-0 px-6 py-2.5 rounded-full cursor-pointer transition-all duration-300
-                ${item.time === slotTime
-                    ? "bg-text text-white shadow-md scale-105"
-                    : "bg-gray-50 text-gray-600 border border-gray-300 hover:border-gray-400 hover:shadow"
-                  }`} key={index}>
-                  {item.time.toLowerCase()}
-                </p>
-              ))
+            {docSlots.length > 0 && docSlots[slotIndex]?.slots?.length > 0 ? (
+              docSlots[slotIndex].slots.map((item, index) => {
+                if (item.isBooked) {
+                  return (
+                    <div
+                      key={index}
+                      title="This appointment slot is already booked"
+                      className="text-xs sm:text-sm flex-shrink-0 px-4 py-2.5 rounded-full bg-gray-100 text-gray-400 border border-gray-200 cursor-not-allowed select-none flex items-center gap-1.5 opacity-65"
+                    >
+                      <span className="line-through">{item.time.toLowerCase()}</span>
+                      <span className="text-[10px] font-bold uppercase tracking-wider bg-rose-100 text-rose-600 px-1.5 py-0.5 rounded-md">
+                        Booked
+                      </span>
+                    </div>
+                  );
+                }
+
+                return (
+                  <p
+                    key={index}
+                    onClick={() => setSlotTime(item.time)}
+                    className={`text-sm flex-shrink-0 px-6 py-2.5 rounded-full cursor-pointer transition-all duration-300 ${
+                      item.time === slotTime
+                        ? "bg-text text-white shadow-md scale-105"
+                        : "bg-gray-50 text-gray-600 border border-gray-300 hover:border-gray-400 hover:shadow"
+                    }`}
+                  >
+                    {item.time.toLowerCase()}
+                  </p>
+                );
+              })
             ) : (
               <p className='text-sm text-gray-500 py-2'>No booking slots available for this day.</p>
             )}
