@@ -1,241 +1,212 @@
-# 🩺 Therapique - Mental Health Appointment Platform
-
-A comprehensive mental health appointment booking platform connecting patients with trusted healthcare professionals. Built with modern web technologies for seamless healthcare management.
-
-## ✨ Features
-
-### 👤 Patient Portal
-
-- **Easy Registration & Login** - Secure user authentication system
-- **Doctor Discovery** - Browse doctors by specialty (Clinical, Counseling, Child & Adolescent , Marriage & Family Therapist, Trauma, Addiction , CBT, Art & Music Therapist etc.)
-- **Smart Booking** - Schedule appointments with available time slots
-- **Profile Management** - Update personal information and medical history
-- **Appointment Tracking** - View, manage, and cancel appointments
-- **Multiple Payment Options** - Razorpay and Stripe integration for secure payments
-- **Appointment History** - Complete track record of past and upcoming appointments
-
-### 👨‍⚕️ Doctor Dashboard
-
-- **Professional Profile** - Manage doctor information, specialties, and availability
-- **Appointment Management** - View, approve, and complete patient appointments
-- **Patient Information** - Access patient details and appointment history
-- **Earnings Dashboard** - Track consultation fees and earnings
-- **Schedule Control** - Set availability and manage time slots
-
-### 🔐 Admin Panel
-
-- **Doctor Management** - Add, remove, and verify healthcare professionals
-- **Appointment Oversight** - Monitor all platform appointments
-- **User Management** - Oversee patient registrations and activities
-- **Analytics Dashboard** - Platform usage statistics and insights
-
-## 🛠️ Tech Stack
-
-### Frontend
-
-- **React.js** - Modern UI library for building interactive interfaces
-- **Tailwind CSS** - Utility-first CSS framework for responsive design
-- **React Router** - Client-side routing for single-page application
-- **Axios** - HTTP client for API communication
-- **React Toastify** - Elegant notifications and alerts
-
-### Backend
-
-- **Node.js** - Server-side JavaScript runtime
-- **Express.js** - Web application framework
-- **MongoDB** - NoSQL database for data storage
-- **Mongoose** - Object modeling for MongoDB
-- **JWT** - JSON Web Tokens for secure authentication
-- **bcrypt** - Password hashing for security
-
-### Payment Integration
-
-- **Razorpay** - Indian payment gateway
-- **Stripe** - International payment processing
-
-### Cloud Services
-
-- **Cloudinary** - Image storage and optimization
-- **MongoDB Atlas** - Cloud database hosting
-
-## 📁 Project Structure
-
-```
-Therapique/
-├── frontend/           # Patient-facing React application
-├── admin/             # Admin & Doctor dashboard React app
-├── backend/           # Node.js/Express API server
-│   ├── controllers/   # Business logic handlers
-│   ├── models/        # Database schemas
-│   ├── routes/        # API route definitions
-│   ├── middlewares/   # Authentication & validation
-│   └── config/        # Database & cloud configurations
-└── README.md
-```
-
-## 🚀 Quick Start
-
-### Prerequisites
-
-- Node.js (v14 or higher)
-- MongoDB
-- Cloudinary account
-- Razorpay/Stripe accounts
-
-### Installation
-
-1. **Clone the repository**
-
-   ```bash
-   git clone https://github.com/RISHAB-999/Therapique.git
-   cd Therapique
-   ```
-
-2. **Backend Setup**
-
-   ```bash
-   cd backend
-   npm install
-   ```
-
-   Create `.env` file:
-
-   ```env
-   MONGODB_URI=your_mongodb_connection_string
-   CLOUDINARY_CLOUD_NAME=your_cloudinary_name
-   CLOUDINARY_API_KEY=your_cloudinary_key
-   CLOUDINARY_API_SECRET=your_cloudinary_secret
-   JWT_SECRET=your_jwt_secret
-   RAZORPAY_KEY_ID=your_razorpay_key
-   RAZORPAY_KEY_SECRET=your_razorpay_secret
-   STRIPE_SECRET_KEY=your_stripe_secret
-   ```
-
-3. **Frontend Setup**
-
-   ```bash
-   cd ../frontend
-   npm install
-   ```
-
-   Create `.env` file:
-
-   ```env
-   VITE_BACKEND_URL=http://localhost:5000
-   ```
-
-4. **Admin Panel Setup**
-
-   ```bash
-   cd ../admin
-   npm install
-   ```
-
-   Create `.env` file:
-
-   ```env
-   VITE_BACKEND_URL=http://localhost:5000
-   ```
-
-### Running the Application
-
-1. **Start Backend Server**
-
-   ```bash
-   cd backend
-   npm run server
-   ```
-
-2. **Start Frontend (Patient Portal)**
-
-   ```bash
-   cd frontend
-   npm run dev
-   ```
-
-3. **Start Admin Panel**
-   ```bash
-   cd admin
-   npm run dev
-   ```
-
-## 🎯 Key Functionalities
-
-### Authentication & Security
-
-- JWT-based authentication for users, doctors, and admins
-- Password encryption using bcrypt
-- Protected routes and middleware validation
-- Secure payment processing
-
-### Appointment System
-
-- Real-time slot availability checking
-- Automated appointment confirmations
-- Email/SMS notifications
-- Cancellation and rescheduling options
-
-### Payment Processing
-
-- Multiple payment gateway support
-- Secure transaction handling
-- Payment verification and confirmation
-- Refund management for cancellations
-
-### File Management
-
-- Doctor profile image uploads
-- Medical document storage
-- Cloudinary integration for optimized media delivery
-
-## 🔧 API Endpoints
-
-### User Routes
-
-- `POST /api/user/register` - User registration
-- `POST /api/user/login` - User login
-- `GET /api/user/get-profile` - Get user profile
-- `POST /api/user/update-profile` - Update profile
-- `POST /api/user/book-appointment` - Book appointment
-- `POST /api/user/payment-razorpay` - Razorpay payment
-- `POST /api/user/payment-stripe` - Stripe payment
-
-### Doctor Routes
-
-- `GET /api/doctor/list` - Get all doctors
-- `POST /api/doctor/login` - Doctor login
-- `GET /api/doctor/appointments` - Doctor appointments
-- `POST /api/doctor/complete-appointment` - Mark appointment complete
-
-### Admin Routes
-
-- `POST /api/admin/add-doctor` - Add new doctor
-- `GET /api/admin/all-appointments` - Get all appointments
-- `POST /api/admin/cancel-appointment` - Cancel appointment
-
-## 🤝 Contributing
-
-1. Fork the repository
-2. Create your feature branch (`git checkout -b feature/AmazingFeature`)
-3. Commit your changes (`git commit -m 'Add some AmazingFeature'`)
-4. Push to the branch (`git push origin feature/AmazingFeature`)
-5. Open a Pull Request
-
-## 📄 License
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
-## 👥 Author
-
-**RISHAB-999** - [GitHub Profile](https://github.com/RISHAB-999)
-
-## 🙏 Acknowledgments
-
-- React.js community for excellent documentation
-- Tailwind CSS for the beautiful design system
-- MongoDB for reliable data storage
-- Cloudinary for image management solutions
+# 🩺 Therapique - Mental Health, Telehealth & Psycho-Educational Platform
+
+<p align="center">
+  <img src="frontend/src/assets/logo.svg" alt="Therapique Logo" width="180" />
+</p>
+
+<p align="center">
+  <strong>Therapique</strong> is a modern, comprehensive mental health and telehealth ecosystem connecting patients with licensed mental health professionals, featuring real-time WebRTC video consultations, a curated therapeutic book library, a coin rewards system, an interactive AI assistant, and dedicated Doctor & Admin management panels.
+</p>
 
 ---
 
-**Built with ❤️ for better healthcare accessibility**
+## 🌟 Key Platform Modules
+
+### 1. 👤 Patient Portal & Telehealth
+- **Specialist Discovery**: Browse verified psychologists, psychiatrists, CBT therapists, trauma specialists, and child counselors by specialty, experience, and fees.
+- **Smart Appointment Scheduling**: Real-time slot booking with instant confirmation.
+- **WebRTC Video Consultations**:
+  - High-definition 1-on-1 peer-to-peer video & audio calls.
+  - In-call live chat with real-time Socket.IO signaling.
+  - In-call controls (mic/camera toggle, screen dock, call timer).
+  - Post-session completion confirmation & digital receipt generation.
+- **Therapique AI Assistant**: Smart interactive conversational guide recommending therapists, articles, and therapeutic literature based on user concerns.
+- **Appointment & Order History**: Real-time tracking of upcoming sessions, past consultations, and book orders.
+
+### 2. 📚 Curated Mental Health Library & E-Commerce
+- **Therapeutic Book Catalog**: Extensive collection spanning CBT, Anxiety, Trauma Recovery, Addiction, Parenting, and Mindfulness.
+- **Multi-Format Selection**: Support for Paperback, Hardcover, E-Book, and Audiobook editions.
+- **Smooth Book Experience**: 3D tilt effects, page flip previews, and category-filtered browsing.
+- **Cart & Order Tracking**: Instant checkout with automated invoice and receipt printing.
+- **🪙 Coins & Rewards Wallet**: Earn reward coins with appointments and book purchases to redeem on future orders.
+
+### 3. 📰 Psycho-Educational Blog & Resource Bento
+- **Curated Articles**: Deep-dive clinical insights on anxiety management, burnout, trauma healing, and habit formation.
+- **Integrated Specialist CTAs**: Direct routing from articles to relevant doctors and related library books.
+
+### 4. 👨‍⚕️ Doctor Dashboard
+- **Consultation Portal**: Direct access to join live video appointments with patients.
+- **Schedule & Availability**: Manage active working hours, breaks, and consultation slots.
+- **Patient Case Records**: View patient history, consultation notes, and completed session logs.
+- **Earnings & Analytics**: Track completed sessions, pending fees, and monthly revenue.
+
+### 5. 🔐 Admin Management Panel
+- **Doctor Verification & Onboarding**: Add, review credentials, and publish doctor profiles.
+- **Appointment Oversight**: Comprehensive dashboard monitoring all platform sessions in real time.
+- **Refund & Order Management**: Process patient cancellations, order refunds, and platform transactions.
+- **System Analytics**: Platform-wide metrics for user growth, appointments, and sales.
+
+---
+
+## 🛠️ Tech Stack
+
+| Domain | Technologies |
+|---|---|
+| **Frontend (Patient)** | React 18, Vite, Tailwind CSS, Lucide Icons, Canvas Confetti |
+| **Admin & Doctor Panel** | React 18, Vite, Tailwind CSS, Context API |
+| **Backend API** | Node.js, Express.js, MongoDB, Mongoose |
+| **Real-time & Video** | Socket.IO, WebRTC (Peer-to-Peer with STUN/TURN support) |
+| **Authentication** | JWT (JSON Web Tokens), bcryptjs |
+| **Payment Gateways** | Razorpay & Stripe |
+| **Cloud Storage** | Cloudinary (Doctor photos, Book covers, Medical documents) |
+
+---
+
+## 📁 Repository Structure
+
+```
+Therapique/
+├── frontend/             # Patient-facing React application (Port 5173)
+│   ├── src/
+│   │   ├── assets/       # Illustrations, icons, book covers & doctor images
+│   │   ├── components/   # UI components (Navbar, VideoCall, Assistant, etc.)
+│   │   ├── context/      # AppContext, ShopContext
+│   │   ├── hooks/        # useWebRTC, useSocket, useCallSignaling
+│   │   └── pages/        # Home, Library, Appointments, VideoCallPage, Blog
+├── admin/                # Admin & Doctor Dashboard React application (Port 5174)
+│   ├── src/
+│   │   ├── context/      # AdminContext, DoctorContext
+│   │   └── pages/        # Doctor Appointments, Dashboard, AddDoctor
+├── backend/              # Node.js/Express API Server (Port 4000)
+│   ├── config/           # MongoDB & Cloudinary configuration
+│   ├── controllers/      # Admin, Doctor, User & Payment controllers
+│   ├── models/           # Appointment, Doctor, User, Book schemas
+│   ├── routes/           # REST API route definitions
+│   └── socket/           # WebRTC signaling & real-time chat handlers
+└── README.md
+```
+
+---
+
+## 🚀 Getting Started
+
+### Prerequisites
+- **Node.js**: v18.0.0 or higher
+- **MongoDB**: Local MongoDB instance or MongoDB Atlas URI
+- **Cloudinary Account**: For cloud image storage
+- **Stripe & Razorpay API Keys**: For payment testing
+
+---
+
+### Installation & Setup
+
+#### 1. Clone the Repository
+```bash
+git clone https://github.com/RISHAB-999/Therapiques.git
+cd Therapique
+```
+
+#### 2. Configure Backend
+```bash
+cd backend
+npm install
+```
+
+Create a `.env` file in the `backend/` directory:
+```env
+PORT=4000
+MONGODB_URI=your_mongodb_connection_string
+JWT_SECRET=your_jwt_secret_key
+CLOUDINARY_NAME=your_cloudinary_name
+CLOUDINARY_API_KEY=your_cloudinary_api_key
+CLOUDINARY_SECRET_KEY=your_cloudinary_secret_key
+ADMIN_EMAIL=admin@therapique.com
+ADMIN_PASSWORD=your_admin_password
+STRIPE_SECRET_KEY=your_stripe_secret_key
+RAZORPAY_KEY_ID=your_razorpay_key_id
+RAZORPAY_KEY_SECRET=your_razorpay_key_secret
+CURRENCY=INR
+```
+
+#### 3. Configure Frontend
+```bash
+cd ../frontend
+npm install
+```
+
+Create a `.env` file in the `frontend/` directory:
+```env
+VITE_BACKEND_URL=http://localhost:4000
+VITE_RAZORPAY_KEY_ID=your_razorpay_key_id
+VITE_STRIPE_PUBLIC_KEY=your_stripe_public_key
+```
+
+#### 4. Configure Admin Panel
+```bash
+cd ../admin
+npm install
+```
+
+Create a `.env` file in the `admin/` directory:
+```env
+VITE_BACKEND_URL=http://localhost:4000
+```
+
+---
+
+### Running Locally
+
+You can launch each service in its own terminal window:
+
+```bash
+# 1. Start Backend API & Socket Server (Port 4000)
+cd backend
+npm start
+
+# 2. Start Frontend Application (Port 5173)
+cd frontend
+npm run dev
+
+# 3. Start Admin / Doctor Panel (Port 5174)
+cd admin
+npm run dev
+```
+
+---
+
+## 🔗 API Overview
+
+| Route | Method | Description |
+|---|---|---|
+| `/api/user/register` | `POST` | Patient registration |
+| `/api/user/login` | `POST` | Patient login |
+| `/api/user/book-appointment` | `POST` | Book a consultation slot |
+| `/api/user/appointments` | `GET` | Retrieve user appointment history |
+| `/api/user/payment-razorpay` | `POST` | Initiate Razorpay checkout |
+| `/api/user/payment-stripe` | `POST` | Initiate Stripe checkout |
+| `/api/doctor/login` | `POST` | Doctor authentication |
+| `/api/doctor/appointments` | `GET` | List assigned doctor appointments |
+| `/api/doctor/complete-appointment` | `POST` | Mark session as completed |
+| `/api/admin/add-doctor` | `POST` | Register & verify new doctor |
+| `/api/admin/all-appointments` | `GET` | Platform-wide appointment monitoring |
+
+---
+
+## 🔒 Security Best Practices
+- Strict environment variable separation (`.env` files are ignored from version control).
+- Passwords salted and hashed with `bcryptjs`.
+- Role-based authorization middleware for `User`, `Doctor`, and `Admin` routes.
+- WebRTC peer connections secured over WebSockets with token authentication.
+
+---
+
+## 👥 Authors & Contributions
+
+Developed by **RISHAB-999**
+- GitHub: [@RISHAB-999](https://github.com/RISHAB-999)
+- Repository: [Therapiques](https://github.com/RISHAB-999/Therapiques.git)
+
+---
+
+## 📄 License
+This project is licensed under the [MIT License](LICENSE).
