@@ -387,7 +387,7 @@ const MyProfile = () => {
                                                     }))
                                                 }}
                                                 placeholder={selectedCountry.placeholder}
-                                                className="w-full h-10 px-3 pr-7 bg-[#FAF5EE] border border-[#EADBCE] rounded-xl text-xs sm:text-sm font-medium text-gray-900 placeholder:text-gray-400 focus:bg-white focus:border-black focus:ring-1 focus:ring-black outline-none transition-all"
+                                                className="w-full h-10 px-3 pr-7 bg-[#FAF5EE] border border-[#EADBCE] rounded-xl text-xs sm:text-sm font-medium text-gray-900 placeholder:text-gray-400 focus:bg-white focus:border-black outline-none transition-all"
                                             />
                                             {phoneDigits && (
                                                 <button

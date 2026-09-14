@@ -218,8 +218,8 @@ const DateInput = ({
             setViewMode('days')
           }
         }}
-        className={`h-10 px-3.5 bg-[#FAF5EE]/50 border border-[#EADBCE] rounded-xl text-xs sm:text-sm font-medium transition-all duration-200 flex items-center justify-between gap-2 cursor-pointer shadow-2xs select-none hover:bg-white hover:border-gray-400 ${
-          isOpen ? 'bg-white border-black ring-1 ring-black' : ''
+        className={`h-10 px-3.5 bg-white border border-black rounded-xl text-xs sm:text-sm font-medium transition-all duration-200 flex items-center justify-between gap-2 cursor-pointer shadow-2xs select-none hover:bg-gray-50 ${
+          isOpen ? 'bg-white border-black' : ''
         } ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}
       >
         <div className="flex items-center gap-2.5 min-w-0 truncate">

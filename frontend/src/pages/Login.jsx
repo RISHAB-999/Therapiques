@@ -196,7 +196,7 @@ const Login = () => {
                 type="text"
                 required
                 placeholder="Enter your full name"
-                className="mt-1.5 w-full px-4 py-2.5 bg-[#FAF5EE]/40 border border-[#EADBCE] rounded-xl text-sm text-gray-900 placeholder:text-gray-400 focus:bg-white focus:border-black focus:ring-1 focus:ring-black outline-none transition-all"
+                className="mt-1.5 w-full px-4 py-2.5 bg-[#FAF5EE]/40 border border-[#EADBCE] rounded-xl text-sm text-gray-900 placeholder:text-gray-400 focus:bg-white focus:border-black outline-none transition-all"
               />
             </div>
           )}
@@ -209,7 +209,7 @@ const Login = () => {
               type="email"
               required
               placeholder="Enter your email"
-              className="mt-1.5 w-full px-4 py-2.5 bg-[#FAF5EE]/40 border border-[#EADBCE] rounded-xl text-sm text-gray-900 placeholder:text-gray-400 focus:bg-white focus:border-black focus:ring-1 focus:ring-black outline-none transition-all"
+              className="mt-1.5 w-full px-4 py-2.5 bg-[#FAF5EE]/40 border border-[#EADBCE] rounded-xl text-sm text-gray-900 placeholder:text-gray-400 focus:bg-white focus:border-black outline-none transition-all"
             />
           </div>
 
@@ -222,7 +222,7 @@ const Login = () => {
                 type={showPassword ? 'text' : 'password'}
                 required
                 placeholder="Enter your password"
-                className="w-full pl-4 pr-11 py-2.5 bg-[#FAF5EE]/40 border border-[#EADBCE] rounded-xl text-sm text-gray-900 placeholder:text-gray-400 focus:bg-white focus:border-black focus:ring-1 focus:ring-black outline-none transition-all"
+                className="w-full pl-4 pr-11 py-2.5 bg-[#FAF5EE]/40 border border-[#EADBCE] rounded-xl text-sm text-gray-900 placeholder:text-gray-400 focus:bg-white focus:border-black outline-none transition-all"
               />
               <button
                 type="button"
