@@ -364,7 +364,7 @@ const CompleteProfile = () => {
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 placeholder="Your full name"
-                className="mt-1.5 w-full px-4 py-2.5 bg-white border border-black rounded-xl text-sm text-gray-900 placeholder:text-gray-400 focus:bg-white focus:border-black outline-none transition-all"
+                className="mt-1.5 w-full px-4 py-2.5 bg-[#FAF5EE]/40 border border-[#EADBCE] rounded-xl text-sm text-gray-900 placeholder:text-gray-400 focus:bg-white focus:border-black outline-none transition-all"
               />
             </div>
 
@@ -383,7 +383,7 @@ const CompleteProfile = () => {
                     <button
                       type="button"
                       onClick={() => setIsCountryDropdownOpen(!isCountryDropdownOpen)}
-                      className="h-10 px-2 sm:px-2.5 bg-white border border-black rounded-xl text-xs font-semibold text-gray-800 hover:bg-gray-50 flex items-center gap-1 transition-all cursor-pointer shadow-2xs"
+                      className="h-10 px-2 sm:px-2.5 bg-[#FAF5EE]/50 border border-[#EADBCE] rounded-xl text-xs font-semibold text-gray-800 hover:bg-white hover:border-gray-400 flex items-center gap-1 transition-all cursor-pointer shadow-2xs"
                       title={`Country: ${selectedCountry.name}`}
                     >
                       <span className="text-sm leading-none">{selectedCountry.flag}</span>
@@ -423,7 +423,7 @@ const CompleteProfile = () => {
                   </div>
 
                   {/* Dial Code Badge */}
-                  <div className="h-10 px-2 sm:px-2.5 bg-white border border-black rounded-xl text-xs font-bold text-gray-700 flex items-center justify-center shrink-0 select-none shadow-2xs">
+                  <div className="h-10 px-2 sm:px-2.5 bg-[#FAF5EE]/70 border border-[#EADBCE] rounded-xl text-xs font-bold text-gray-700 flex items-center justify-center shrink-0 select-none shadow-2xs">
                     {selectedCountry.dial_code}
                   </div>
 
@@ -440,7 +440,7 @@ const CompleteProfile = () => {
                         setPhoneDigits(rawDigits)
                       }}
                       placeholder={selectedCountry.placeholder}
-                      className="w-full h-10 px-3 pr-7 bg-white border border-black rounded-xl text-xs sm:text-sm font-medium text-gray-900 placeholder:text-gray-400 focus:bg-white focus:border-black outline-none transition-all"
+                      className="w-full h-10 px-3 pr-7 bg-[#FAF5EE]/40 border border-[#EADBCE] rounded-xl text-xs sm:text-sm font-medium text-gray-900 placeholder:text-gray-400 focus:bg-white focus:border-black outline-none transition-all"
                     />
                     {phoneDigits && (
                       <button
@@ -486,7 +486,7 @@ const CompleteProfile = () => {
                     className={`py-2 px-3 rounded-xl text-xs font-semibold border transition-all text-center ${
                       gender === option
                         ? 'bg-black text-white border-black shadow-xs'
-                        : 'bg-white text-gray-700 border-black/80 hover:bg-gray-50'
+                        : 'bg-[#FAF5EE]/40 text-gray-700 border-[#EADBCE] hover:bg-white hover:border-gray-400'
                     }`}
                   >
                     {option}
@@ -515,7 +515,7 @@ const CompleteProfile = () => {
                     className={`py-1.5 px-3 rounded-xl text-xs font-semibold border transition-all ${
                       addressType === type
                         ? 'bg-black text-white border-black shadow-xs'
-                        : 'bg-white text-gray-700 border-black/80 hover:bg-gray-50'
+                        : 'bg-[#FAF5EE]/40 text-gray-700 border-[#EADBCE] hover:bg-white hover:border-gray-400'
                     }`}
                   >
                     {type === 'Home' ? '🏠 Home' : type === 'Office' ? '🏢 Office' : '📍 Other'}
@@ -530,7 +530,7 @@ const CompleteProfile = () => {
                   value={street}
                   onChange={(e) => setStreet(e.target.value)}
                   placeholder="Street Address / Flat / Building No."
-                  className="w-full h-10 px-3 bg-white border border-black rounded-xl text-xs sm:text-sm font-medium text-gray-900 placeholder:text-gray-400 focus:bg-white focus:border-black outline-none transition-all"
+                  className="w-full h-10 px-3 bg-[#FAF5EE]/40 border border-[#EADBCE] rounded-xl text-xs sm:text-sm font-medium text-gray-900 placeholder:text-gray-400 focus:bg-white focus:border-black outline-none transition-all"
                 />
 
                 {/* City & State */}
@@ -540,14 +540,14 @@ const CompleteProfile = () => {
                     value={city}
                     onChange={(e) => setCity(e.target.value)}
                     placeholder="City / District"
-                    className="w-full h-10 px-3 bg-white border border-black rounded-xl text-xs sm:text-sm font-medium text-gray-900 placeholder:text-gray-400 focus:bg-white focus:border-black outline-none transition-all"
+                    className="w-full h-10 px-3 bg-[#FAF5EE]/40 border border-[#EADBCE] rounded-xl text-xs sm:text-sm font-medium text-gray-900 placeholder:text-gray-400 focus:bg-white focus:border-black outline-none transition-all"
                   />
                   <input
                     type="text"
                     value={state}
                     onChange={(e) => setState(e.target.value)}
                     placeholder="State / Province"
-                    className="w-full h-10 px-3 bg-white border border-black rounded-xl text-xs sm:text-sm font-medium text-gray-900 placeholder:text-gray-400 focus:bg-white focus:border-black outline-none transition-all"
+                    className="w-full h-10 px-3 bg-[#FAF5EE]/40 border border-[#EADBCE] rounded-xl text-xs sm:text-sm font-medium text-gray-900 placeholder:text-gray-400 focus:bg-white focus:border-black outline-none transition-all"
                   />
                 </div>
 
@@ -558,14 +558,14 @@ const CompleteProfile = () => {
                     value={zipcode}
                     onChange={(e) => setZipcode(e.target.value)}
                     placeholder="PIN / Postal Code"
-                    className="w-full h-10 px-3 bg-white border border-black rounded-xl text-xs sm:text-sm font-medium text-gray-900 placeholder:text-gray-400 focus:bg-white focus:border-black outline-none transition-all"
+                    className="w-full h-10 px-3 bg-[#FAF5EE]/40 border border-[#EADBCE] rounded-xl text-xs sm:text-sm font-medium text-gray-900 placeholder:text-gray-400 focus:bg-white focus:border-black outline-none transition-all"
                   />
                   <input
                     type="text"
                     value={country}
                     onChange={(e) => setCountry(e.target.value)}
                     placeholder="Country"
-                    className="w-full h-10 px-3 bg-white border border-black rounded-xl text-xs sm:text-sm font-medium text-gray-900 placeholder:text-gray-400 focus:bg-white focus:border-black outline-none transition-all"
+                    className="w-full h-10 px-3 bg-[#FAF5EE]/40 border border-[#EADBCE] rounded-xl text-xs sm:text-sm font-medium text-gray-900 placeholder:text-gray-400 focus:bg-white focus:border-black outline-none transition-all"
                   />
                 </div>
               </div>
