@@ -59,7 +59,7 @@ export const sendMailSafe = async ({ to, subject, html, text, headers = {} }, re
         // ─────────────────────────────────────────────────────────────
         if (process.env.RESEND_API_KEY) {
             try {
-                const resendFrom = process.env.RESEND_FROM || process.env.SENDER_EMAIL || 'Therapique <onboarding@resend.dev>';
+                const resendFrom = process.env.RESEND_FROM || 'Therapique <onboarding@resend.dev>';
                 const response = await fetch('https://api.resend.com/emails', {
                     method: 'POST',
                     headers: {
