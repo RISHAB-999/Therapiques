@@ -625,11 +625,11 @@ const CompleteProfile = () => {
                       onClick={() => toggleSupportArea(area)}
                       className={`inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-semibold transition-all border ${
                         isSelected
-                          ? 'bg-secondary text-gray-900 border-secondary shadow-2xs font-bold'
+                          ? 'bg-black text-white border-black shadow-xs font-bold'
                           : 'bg-[#FAF5EE]/50 text-gray-700 border-[#EADBCE] hover:bg-white hover:border-gray-400'
                       }`}
                     >
-                      {isSelected && <Check className="w-3.5 h-3.5 text-gray-900" />}
+                      {isSelected && <Check className="w-3.5 h-3.5 text-white" />}
                       <span>{area}</span>
                     </button>
                   )
