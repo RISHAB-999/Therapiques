@@ -217,10 +217,10 @@ const VerifyEmail = () => {
                 value={digit}
                 onChange={(e) => handleInputChange(index, e.target.value)}
                 onKeyDown={(e) => handleKeyDown(index, e)}
-                className={`w-11 h-13 sm:w-12 sm:h-14 text-center text-lg sm:text-xl font-bold rounded-2xl border transition-all outline-none ${
+                className={`w-12 h-14 sm:w-13 sm:h-15 text-center text-xl sm:text-2xl font-semibold rounded-xl border-2 transition-all duration-200 outline-none ${
                   digit
-                    ? 'bg-white border-black text-black ring-1 ring-black shadow-xs'
-                    : 'bg-[#FAF5EE]/50 border-[#EADBCE] text-gray-900 focus:bg-white focus:border-black focus:ring-1 focus:ring-black'
+                    ? 'bg-white border-gray-800 text-gray-900 shadow-sm'
+                    : 'bg-[#FAF5EE]/40 border-[#DDD0C4] text-gray-900 focus:bg-white focus:border-gray-800 focus:shadow-sm'
                 }`}
                 aria-label={`OTP Digit ${index + 1}`}
               />
