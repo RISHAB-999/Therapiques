@@ -106,8 +106,8 @@ export const sendMailSafe = async ({ to, subject, html, text, headers = {} }, re
                         sender: { name: brevoSenderName, email: brevoSenderEmail },
                         to: [{ email: to }],
                         subject,
-                        htmlContent: html || '',
-                        textContent: text || ''
+                        htmlContent: html || '<p>Therapique Notification</p>',
+                        textContent: text || subject || 'Therapique Notification'
                     })
                 });
 
