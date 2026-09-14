@@ -19,16 +19,29 @@ export const getTransporter = () => {
         const pass = process.env.SMTP_PASS;
 
         if (user && pass) {
-            transporter = nodemailer.createTransport({
-                host: process.env.SMTP_HOST || 'smtp.gmail.com',
-                port: Number(process.env.SMTP_PORT) || 465,
-                secure: Number(process.env.SMTP_PORT) === 465 || !process.env.SMTP_PORT,
-                auth: { user, pass },
-                pool: true,
-                maxConnections: 5,
-                maxMessages: Infinity,
-                family: 4 // Force IPv4
-            });
+            const host = process.env.SMTP_HOST || 'smtp.gmail.com';
+            const isGmail = host.includes('gmail');
+
+            if (isGmail) {
+                transporter = nodemailer.createTransport({
+                    service: 'gmail',
+                    auth: { user, pass },
+                    pool: true,
+                    maxConnections: 5,
+                    maxMessages: Infinity
+                });
+            } else {
+                transporter = nodemailer.createTransport({
+                    host,
+                    port: Number(process.env.SMTP_PORT) || 465,
+                    secure: Number(process.env.SMTP_PORT) === 465 || !process.env.SMTP_PORT,
+                    auth: { user, pass },
+                    pool: true,
+                    maxConnections: 5,
+                    maxMessages: Infinity,
+                    family: 4
+                });
+            }
         }
     }
     return transporter;
