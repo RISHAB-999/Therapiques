@@ -54,6 +54,43 @@ const registerUser = async (req, res) => {
             email: { $regex: new RegExp(`^${escapedEmail}$`, 'i') } 
         });
         if (exists) {
+            // If the account was already created but is not yet email-verified, refresh OTP and allow verification
+            if (exists.emailVerified === false) {
+                const otp = crypto.randomInt(100000, 1000000).toString();
+                const hashedOtp = crypto.createHash('sha256').update(otp).digest('hex');
+
+                const salt = await bcrypt.genSalt(10);
+                const hashedPassword = await bcrypt.hash(password, salt);
+
+                exists.name = name.trim() || exists.name;
+                exists.password = hashedPassword;
+                exists.verifyOtp = hashedOtp;
+                exists.verifyOtpExpireAt = Date.now() + 10 * 60 * 1000;
+                exists.verifyOtpAttempts = 0;
+                exists.verifyOtpLastSentAt = Date.now();
+                await exists.save();
+
+                const token = jwt.sign({ id: exists._id }, process.env.JWT_SECRET);
+
+                sendSignupOtpEmail({
+                    email: exists.email,
+                    name: exists.name,
+                    otp
+                }).catch(err => console.log('OTP email error:', err.message));
+
+                return res.json({
+                    success: true,
+                    token,
+                    message: "A new verification code has been sent to your email.",
+                    userData: {
+                        _id: exists._id,
+                        name: exists.name,
+                        email: exists.email,
+                        emailVerified: false,
+                        profileCompleted: false
+                    }
+                });
+            }
             return res.json({ success: false, message: "An account with this email already exists. Please log in instead." });
         }
 
