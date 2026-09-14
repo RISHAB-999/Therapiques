@@ -988,3 +988,46 @@ export const sendSignupOtpEmail = async ({ email, name, otp }) => {
   });
 };
 
+// ─────────────────────────────────────────────────
+// 13. Password Reset OTP Email → User
+// ─────────────────────────────────────────────────
+export const sendPasswordResetOtpEmail = async ({ email, name, otp }) => {
+  if (!email || !otp) return { success: false, error: 'Email and OTP are required' };
+
+  if (process.env.NODE_ENV !== 'production' && (!process.env.SMTP_USER || !process.env.SMTP_PASS)) {
+    console.log('\n🔑 [Therapique Password Reset OTP]');
+    console.log(`   To: ${email}`);
+    console.log(`   Reset OTP: ${otp}`);
+    console.log('   (Valid for 10 minutes)\n');
+  }
+
+  return sendMailSafe({
+    to: email,
+    subject: 'Reset your Therapique password 🔑',
+    html: wrap({
+      title: 'Reset Your Password — Therapique',
+      preheader: `Your password reset code is ${otp}. Valid for 10 minutes.`,
+      body: `
+<h2 style="font-size:22px;font-weight:800;color:#1A1715;margin-top:0;margin-bottom:12px">Password Reset Request 🔑</h2>
+<p style="color:#4A423D;font-size:14px;line-height:1.6;margin-bottom:20px">
+  Hello <b>${name || 'there'}</b>, we received a request to reset the password for your Therapique account. Please use the 6-digit code below to set a new password.
+</p>
+
+<div class="card" style="text-align:center;padding:28px 20px;background:#FAF5EE;border:1px solid #EADBCE;border-radius:18px;margin:24px 0">
+  <div style="font-size:12px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:#8C7B70;margin-bottom:10px">Password Reset Code</div>
+  <div style="font-size:36px;font-weight:900;letter-spacing:10px;color:#1A1715;font-family:monospace;margin:8px 0 12px 10px">
+    ${otp}
+  </div>
+  <div style="font-size:12px;color:#73645A;font-weight:500">
+    ⏱️ This code will expire in <b>10 minutes</b>.
+  </div>
+</div>
+
+<p style="font-size:13px;color:#73645A;line-height:1.6;margin-top:20px">
+  If you did not request a password reset, please ignore this email or change your password immediately if you suspect unauthorized access.
+</p>`
+    })
+  });
+};
+
+

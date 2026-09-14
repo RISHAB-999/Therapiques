@@ -5,7 +5,7 @@ import axios from 'axios'
 import ImageCropperModal from '../components/ImageCropperModal'
 import CustomDropdown from '../components/ui/CustomDropdown'
 import DateInput from '../components/ui/DateInput'
-import { ChevronDown, X } from 'lucide-react'
+import { ChevronDown, X, Lock, KeyRound, Eye, EyeOff } from 'lucide-react'
 
 const COUNTRY_LIST = [
   { code: 'IN', name: 'India', flag: '🇮🇳', dial_code: '+91', maxLength: 10, placeholder: '9876543210' },
@@ -52,6 +52,53 @@ const MyProfile = () => {
     const countryDropdownRef = useRef(null)
 
     const [savedAddresses, setSavedAddresses] = useState([])
+
+    // Password Change State
+    const [showPasswordModal, setShowPasswordModal] = useState(false)
+    const [currentPassword, setCurrentPassword] = useState('')
+    const [newPassword, setNewPassword] = useState('')
+    const [confirmPassword, setConfirmPassword] = useState('')
+    const [showCurrentPass, setShowCurrentPass] = useState(false)
+    const [showNewPass, setShowNewPass] = useState(false)
+    const [showConfirmPass, setShowConfirmPass] = useState(false)
+    const [passwordLoading, setPasswordLoading] = useState(false)
+
+    const handleChangePassword = async (e) => {
+        e.preventDefault()
+        if (!currentPassword || !newPassword || !confirmPassword) {
+            return toast.error('Please fill in all password fields')
+        }
+        if (newPassword.length < 8) {
+            return toast.error('New password must be at least 8 characters long')
+        }
+        if (newPassword !== confirmPassword) {
+            return toast.error('New passwords do not match')
+        }
+
+        try {
+            setPasswordLoading(true)
+            const { data } = await axios.post(
+                `${backendUrl}/api/user/change-password`,
+                { currentPassword, newPassword },
+                { headers: { token } }
+            )
+
+            if (data.success) {
+                toast.success(data.message || 'Password updated successfully!')
+                setCurrentPassword('')
+                setNewPassword('')
+                setConfirmPassword('')
+                setShowPasswordModal(false)
+            } else {
+                toast.error(data.message)
+            }
+        } catch (error) {
+            console.error('Password change error:', error)
+            toast.error(error.response?.data?.message || error.message || 'Failed to update password')
+        } finally {
+            setPasswordLoading(false)
+        }
+    }
 
     // Close country dropdown on outside click
     useEffect(() => {
@@ -669,15 +716,153 @@ const MyProfile = () => {
                             </button>
                         </>
                     ) : (
-                        <button 
-                            onClick={() => setIsEdit(true)} 
-                            className='bg-black hover:bg-gray-800 text-white font-extrabold px-6 sm:px-8 py-2.5 sm:py-3 rounded-2xl text-xs sm:text-sm transition-all duration-300 shadow-md cursor-pointer'
-                        >
-                            Edit Profile
-                        </button>
+                        <>
+                            <button 
+                                onClick={() => setIsEdit(true)} 
+                                className='bg-black hover:bg-gray-800 text-white font-extrabold px-6 sm:px-8 py-2.5 sm:py-3 rounded-2xl text-xs sm:text-sm transition-all duration-300 shadow-md cursor-pointer'
+                            >
+                                Edit Profile
+                            </button>
+                            <button 
+                                onClick={() => setShowPasswordModal(true)} 
+                                className='bg-[#FAF5EE] hover:bg-white text-gray-800 font-bold px-5 sm:px-7 py-2.5 sm:py-3 rounded-2xl text-xs sm:text-sm border border-[#EADBCE] transition-all duration-300 shadow-2xs hover:border-black cursor-pointer flex items-center gap-2'
+                            >
+                                <KeyRound className="w-4 h-4 text-gray-700" />
+                                <span>Change Password</span>
+                            </button>
+                        </>
                     )}
                 </div>
             </div>
+
+            {/* Change Password Modal */}
+            {showPasswordModal && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs animate-in fade-in-50">
+                    <div className="bg-white border border-[#EADBCE] rounded-3xl p-6 sm:p-8 max-w-md w-full shadow-2xl space-y-5 animate-in zoom-in-95">
+                        <div className="flex items-center justify-between pb-3 border-b border-[#EADBCE]">
+                            <div className="flex items-center gap-2.5">
+                                <div className="w-9 h-9 rounded-2xl bg-[#FAF5EE] border border-[#EADBCE] flex items-center justify-center text-black">
+                                    <Lock className="w-4 h-4" />
+                                </div>
+                                <div>
+                                    <h3 className="text-base sm:text-lg font-bold text-gray-900 leading-tight">Change Password</h3>
+                                    <p className="text-[11px] text-gray-500">Update your account login password</p>
+                                </div>
+                            </div>
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    setShowPasswordModal(false)
+                                    setCurrentPassword('')
+                                    setNewPassword('')
+                                    setConfirmPassword('')
+                                }}
+                                className="p-1.5 text-gray-400 hover:text-gray-700 hover:bg-[#FAF5EE] rounded-xl transition-colors cursor-pointer"
+                            >
+                                <X className="w-4 h-4" />
+                            </button>
+                        </div>
+
+                        <form onSubmit={handleChangePassword} className="space-y-4">
+                            {/* Current Password */}
+                            <div>
+                                <label className="text-xs font-semibold text-gray-700 block mb-1">
+                                    Current Password <span className="text-red-500">*</span>
+                                </label>
+                                <div className="relative flex items-center">
+                                    <input
+                                        type={showCurrentPass ? 'text' : 'password'}
+                                        required
+                                        value={currentPassword}
+                                        onChange={(e) => setCurrentPassword(e.target.value)}
+                                        placeholder="Enter current password"
+                                        className="w-full h-10 px-3.5 pr-10 bg-[#FAF5EE]/40 border border-[#EADBCE] rounded-xl text-xs sm:text-sm font-medium text-gray-900 placeholder:text-gray-400 focus:bg-white focus:border-black outline-none transition-all"
+                                    />
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowCurrentPass(!showCurrentPass)}
+                                        className="absolute right-3 p-1 text-gray-400 hover:text-gray-700 cursor-pointer"
+                                    >
+                                        {showCurrentPass ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
+                                    </button>
+                                </div>
+                            </div>
+
+                            {/* New Password */}
+                            <div>
+                                <label className="text-xs font-semibold text-gray-700 block mb-1">
+                                    New Password <span className="text-red-500">*</span> (min 8 characters)
+                                </label>
+                                <div className="relative flex items-center">
+                                    <input
+                                        type={showNewPass ? 'text' : 'password'}
+                                        required
+                                        minLength={8}
+                                        value={newPassword}
+                                        onChange={(e) => setNewPassword(e.target.value)}
+                                        placeholder="Enter new strong password"
+                                        className="w-full h-10 px-3.5 pr-10 bg-[#FAF5EE]/40 border border-[#EADBCE] rounded-xl text-xs sm:text-sm font-medium text-gray-900 placeholder:text-gray-400 focus:bg-white focus:border-black outline-none transition-all"
+                                    />
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowNewPass(!showNewPass)}
+                                        className="absolute right-3 p-1 text-gray-400 hover:text-gray-700 cursor-pointer"
+                                    >
+                                        {showNewPass ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
+                                    </button>
+                                </div>
+                            </div>
+
+                            {/* Confirm Password */}
+                            <div>
+                                <label className="text-xs font-semibold text-gray-700 block mb-1">
+                                    Confirm New Password <span className="text-red-500">*</span>
+                                </label>
+                                <div className="relative flex items-center">
+                                    <input
+                                        type={showConfirmPass ? 'text' : 'password'}
+                                        required
+                                        minLength={8}
+                                        value={confirmPassword}
+                                        onChange={(e) => setConfirmPassword(e.target.value)}
+                                        placeholder="Re-enter new password"
+                                        className="w-full h-10 px-3.5 pr-10 bg-[#FAF5EE]/40 border border-[#EADBCE] rounded-xl text-xs sm:text-sm font-medium text-gray-900 placeholder:text-gray-400 focus:bg-white focus:border-black outline-none transition-all"
+                                    />
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowConfirmPass(!showConfirmPass)}
+                                        className="absolute right-3 p-1 text-gray-400 hover:text-gray-700 cursor-pointer"
+                                    >
+                                        {showConfirmPass ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div className="flex items-center justify-end gap-3 pt-3 border-t border-[#EADBCE]">
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        setShowPasswordModal(false)
+                                        setCurrentPassword('')
+                                        setNewPassword('')
+                                        setConfirmPassword('')
+                                    }}
+                                    className="px-5 py-2.5 rounded-xl text-xs font-semibold text-gray-600 hover:text-gray-900 hover:bg-[#FAF5EE] transition-colors cursor-pointer"
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    type="submit"
+                                    disabled={passwordLoading}
+                                    className="bg-black hover:bg-gray-800 disabled:opacity-50 text-white font-bold text-xs sm:text-sm px-6 py-2.5 rounded-xl transition-all shadow-sm cursor-pointer flex items-center gap-2"
+                                >
+                                    {passwordLoading ? 'Updating...' : 'Update Password'}
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
 
             {/* Image Cropper Modal */}
             <ImageCropperModal

@@ -1,5 +1,5 @@
 import express from 'express';
-import { getProfile, loginUser, registerUser, verifyEmailOtp, resendEmailOtp, updateProfile, listAppointment, cancelAppointment, claimRefund, paymentRazorpay, verifyRazorpay, contactForm, purchaseCoins, verifyCoinsPayment, bookAppointmentWithCoins, bookAppointmentWithPayment, createBookOrderRazorpay, verifyBookOrderRazorpay, placeBookOrderCOD, placeBookOrderTokens, getUserOrders, getSingleOrder, updateOrderStatus, subscribeNewsletter, verifyAppointmentJoinUser } from '../controllers/userController.js';
+import { getProfile, loginUser, registerUser, verifyEmailOtp, resendEmailOtp, updateProfile, changePassword, sendResetPasswordOtp, verifyResetPasswordOtp, listAppointment, cancelAppointment, claimRefund, paymentRazorpay, verifyRazorpay, contactForm, purchaseCoins, verifyCoinsPayment, bookAppointmentWithCoins, bookAppointmentWithPayment, createBookOrderRazorpay, verifyBookOrderRazorpay, placeBookOrderCOD, placeBookOrderTokens, getUserOrders, getSingleOrder, updateOrderStatus, subscribeNewsletter, verifyAppointmentJoinUser } from '../controllers/userController.js';
 import upload from '../middlewares/multer.js';
 import authUser from '../middlewares/authUser.js';
 const userRouter = express.Router();
@@ -8,6 +8,9 @@ userRouter.post("/register", registerUser)
 userRouter.post("/login", loginUser)
 userRouter.post("/verify-otp", authUser, verifyEmailOtp)
 userRouter.post("/resend-otp", authUser, resendEmailOtp)
+userRouter.post("/forgot-password", sendResetPasswordOtp)
+userRouter.post("/reset-password", verifyResetPasswordOtp)
+userRouter.post("/change-password", authUser, changePassword)
 userRouter.post("/contact", authUser, contactForm)
 userRouter.post("/newsletter-subscribe", subscribeNewsletter)
 

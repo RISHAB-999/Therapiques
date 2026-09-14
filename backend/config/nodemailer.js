@@ -55,46 +55,14 @@ export const getTransporter = () => {
 export const sendMailSafe = async ({ to, subject, html, text, headers = {} }, retries = 2) => {
     try {
         // ─────────────────────────────────────────────────────────────
-        // 1. Resend API via HTTPS (Port 443 — 100% supported on Render Free tier)
-        // ─────────────────────────────────────────────────────────────
-        if (process.env.RESEND_API_KEY) {
-            try {
-                const resendFrom = process.env.RESEND_FROM || 'Therapique <onboarding@resend.dev>';
-                const response = await fetch('https://api.resend.com/emails', {
-                    method: 'POST',
-                    headers: {
-                        'Authorization': `Bearer ${process.env.RESEND_API_KEY.trim()}`,
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({
-                        from: resendFrom,
-                        to: Array.isArray(to) ? to : [to],
-                        subject,
-                        html: html || '',
-                        text: text || ''
-                    })
-                });
-
-                const data = await response.json();
-                if (response.ok && data.id) {
-                    console.log(`📧 [Resend HTTPS] Email sent to ${to} (ID: ${data.id})`);
-                    return { success: true, messageId: data.id };
-                } else {
-                    console.error(`⚠️ [Resend HTTPS] Response:`, data);
-                    // If Resend failed (e.g. key issue), fall through to SMTP
-                }
-            } catch (resendErr) {
-                console.error(`⚠️ [Resend HTTPS] Network error:`, resendErr.message);
-            }
-        }
-
-        // ─────────────────────────────────────────────────────────────
-        // 2. Brevo (Sendinblue) API via HTTPS (Port 443)
+        // 1. Brevo (Sendinblue) API via HTTPS (Port 443 — 100% supported on Render & Cloud)
         // ─────────────────────────────────────────────────────────────
         if (process.env.BREVO_API_KEY) {
             try {
                 const brevoSenderEmail = process.env.BREVO_SENDER_EMAIL || process.env.SMTP_USER || 'therapique.official@gmail.com';
                 const brevoSenderName = process.env.BREVO_SENDER_NAME || 'Therapique';
+                const recipients = Array.isArray(to) ? to.map(email => ({ email })) : [{ email: to }];
+
                 const response = await fetch('https://api.brevo.com/v3/smtp/email', {
                     method: 'POST',
                     headers: {
@@ -104,10 +72,11 @@ export const sendMailSafe = async ({ to, subject, html, text, headers = {} }, re
                     },
                     body: JSON.stringify({
                         sender: { name: brevoSenderName, email: brevoSenderEmail },
-                        to: [{ email: to }],
+                        to: recipients,
                         subject,
                         htmlContent: html || '<p>Therapique Notification</p>',
-                        textContent: text || subject || 'Therapique Notification'
+                        textContent: text || subject || 'Therapique Notification',
+                        headers: Object.keys(headers).length > 0 ? headers : undefined
                     })
                 });
 
@@ -124,7 +93,7 @@ export const sendMailSafe = async ({ to, subject, html, text, headers = {} }, re
         }
 
         // ─────────────────────────────────────────────────────────────
-        // 3. Fallback to Direct Nodemailer SMTP
+        // 2. Fallback to Direct Nodemailer SMTP
         // ─────────────────────────────────────────────────────────────
         const mailer = getTransporter();
         const sender = process.env.SENDER_EMAIL || process.env.SMTP_USER || 'Therapique <support@therapique.com>';
@@ -133,7 +102,7 @@ export const sendMailSafe = async ({ to, subject, html, text, headers = {} }, re
             console.log('\n📧 [Email — Dev Mode (no SMTP or API configured)]');
             console.log(`   To: ${to}`);
             console.log(`   Subject: ${subject}`);
-            console.log('   → Set RESEND_API_KEY or SMTP_USER/SMTP_PASS in .env to send real emails.\n');
+            console.log('   → Set BREVO_API_KEY or SMTP_USER/SMTP_PASS in .env to send real emails.\n');
             return { success: true, simulated: true };
         }
 
