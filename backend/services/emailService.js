@@ -946,3 +946,45 @@ export const sendAppointmentTenMinReminderDoctor = async ({
   });
 };
 
+// ─────────────────────────────────────────────────
+// 12. Signup / Account Verification OTP Email → User
+// ─────────────────────────────────────────────────
+export const sendSignupOtpEmail = async ({ email, name, otp }) => {
+  if (!email || !otp) return { success: false, error: 'Email and OTP are required' };
+
+  if (process.env.NODE_ENV !== 'production' && (!process.env.SMTP_USER || !process.env.SMTP_PASS)) {
+    console.log('\n🔑 [Therapique Dev OTP]');
+    console.log(`   To: ${email}`);
+    console.log(`   Verification OTP: ${otp}`);
+    console.log('   (Valid for 10 minutes)\n');
+  }
+
+  return sendMailSafe({
+    to: email,
+    subject: 'Verify your Therapique account',
+    html: wrap({
+      title: 'Verify Your Therapique Account',
+      preheader: `Your verification code is ${otp}. It will expire in 10 minutes.`,
+      body: `
+<h2 style="font-size:22px;font-weight:800;color:#1A1715;margin-top:0;margin-bottom:12px">Welcome to Therapique! 🌿</h2>
+<p style="color:#4A423D;font-size:14px;line-height:1.6;margin-bottom:20px">
+  Hello <b>${name || 'there'}</b>, thank you for joining Therapique. Please enter the 6-digit verification code below to verify your email address and continue setting up your profile.
+</p>
+
+<div class="card" style="text-align:center;padding:28px 20px;background:#FAF5EE;border:1px solid #EADBCE;border-radius:18px;margin:24px 0">
+  <div style="font-size:12px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:#8C7B70;margin-bottom:10px">Your Verification Code</div>
+  <div style="font-size:36px;font-weight:900;letter-spacing:10px;color:#1A1715;font-family:monospace;margin:8px 0 12px 10px">
+    ${otp}
+  </div>
+  <div style="font-size:12px;color:#73645A;font-weight:500">
+    ⏱️ This code will expire in <b>10 minutes</b>.
+  </div>
+</div>
+
+<p style="font-size:13px;color:#73645A;line-height:1.6;margin-top:20px">
+  If you did not request this verification code, you can safely ignore this email.
+</p>`
+    })
+  });
+};
+

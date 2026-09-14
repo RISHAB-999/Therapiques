@@ -15,31 +15,36 @@ const razorpayInstance = new razorpay({
 
 // API for doctor Login 
 const loginDoctor = async (req, res) => {
-
     try {
+        const { email, password } = req.body;
+        if (!email || !password) {
+            return res.json({ success: false, message: "Invalid credentials" });
+        }
 
-        const { email, password } = req.body
-        const user = await doctorModel.findOne({ email })
+        const normalizedEmail = email.toLowerCase().trim();
+        const escapedEmail = normalizedEmail.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        const user = await doctorModel.findOne({ 
+            email: { $regex: new RegExp(`^${escapedEmail}$`, 'i') } 
+        });
 
         if (!user) {
-            return res.json({ success: false, message: "Invalid credentials" })
+            return res.json({ success: false, message: "Invalid credentials" });
         }
 
-        const isMatch = await bcrypt.compare(password, user.password)
+        const isMatch = await bcrypt.compare(password, user.password);
 
         if (isMatch) {
-            const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET)
-            res.json({ success: true, token })
+            const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET);
+            res.json({ success: true, token });
         } else {
-            res.json({ success: false, message: "Invalid credentials" })
+            res.json({ success: false, message: "Invalid credentials" });
         }
 
-
     } catch (error) {
-        console.log(error)
-        res.json({ success: false, message: error.message })
+        console.log(error);
+        res.json({ success: false, message: error.message });
     }
-}
+};
 
 
 // API to get doctor appointments for doctor panel

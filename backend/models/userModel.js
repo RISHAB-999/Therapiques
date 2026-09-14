@@ -8,7 +8,10 @@ const userSchema = new mongoose.Schema({
     email: {
         type: String,
         required: true,
-        unique: true
+        unique: true,
+        lowercase: true,
+        trim: true,
+        index: true
     },
     password: {
         type: String,
@@ -59,8 +62,41 @@ const userSchema = new mongoose.Schema({
             type: Date,
             default: Date.now
         }
-    }]
-
+    }],
+    profileCompleted: {
+        type: Boolean,
+        default: false
+    },
+    emailVerified: {
+        type: Boolean
+    },
+    verifyOtp: {
+        type: String,
+        default: ""
+    },
+    verifyOtpExpireAt: {
+        type: Number,
+        default: 0
+    },
+    verifyOtpAttempts: {
+        type: Number,
+        default: 0
+    },
+    verifyOtpLastSentAt: {
+        type: Number,
+        default: 0
+    },
+    wellnessGoal: {
+        type: String,
+        default: ""
+    },
+    supportAreas: [{
+        type: String
+    }],
+    therapyPreference: {
+        type: String,
+        default: ""
+    }
 });
 
 const userModel = mongoose.models.user || mongoose.model("user", userSchema);

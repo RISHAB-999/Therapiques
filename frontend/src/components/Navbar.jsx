@@ -11,7 +11,7 @@ import { useClickOutside } from '../hooks/useClickOutside'
 const Navbar = () => {
     const navigate = useNavigate()
     const location = useLocation()
-    const { token, setToken, userData } = useContext(AppContext)
+    const { token, setToken, userData, setUserData } = useContext(AppContext)
     const { getCartCount } = useContext(ShopContext)
     const cartCount = getCartCount()
     const [showMenu, setShowMenu] = useState(false)
@@ -19,8 +19,13 @@ const Navbar = () => {
     const profileDropdownRef = useRef(null)
 
     const logout = () => {
-        setToken(false)
+        if (userData?._id) {
+            localStorage.removeItem(`saved_addresses_${userData._id}`)
+        }
+        localStorage.removeItem('saved_addresses')
         localStorage.removeItem('token')
+        setToken(false)
+        if (setUserData) setUserData(false)
         setShowProfileDropdown(false)
         navigate('/')
     }

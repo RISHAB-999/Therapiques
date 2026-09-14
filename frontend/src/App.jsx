@@ -1,5 +1,5 @@
-import React, { useState, useContext, lazy, Suspense, useCallback } from 'react'
-import { Routes, Route, useLocation, Navigate } from 'react-router-dom'
+import React, { useState, useContext, useEffect, lazy, Suspense, useCallback } from 'react'
+import { Routes, Route, useLocation, useNavigate, Navigate } from 'react-router-dom'
 import { AnimatePresence } from 'motion/react'
 import Home from './pages/Home'
 import Navbar from './components/Navbar'
@@ -17,6 +17,8 @@ import TherapiqueAssistant from './components/TherapiqueAssistant.jsx'
 // Lazy-load non-critical routes for faster initial load
 const Doctors = lazy(() => import('./pages/Doctors'))
 const Login = lazy(() => import('./pages/Login'))
+const VerifyEmail = lazy(() => import('./pages/VerifyEmail.jsx'))
+const CompleteProfile = lazy(() => import('./pages/CompleteProfile.jsx'))
 const About = lazy(() => import('./pages/About'))
 const Contact = lazy(() => import('./pages/Contact'))
 const MyProfile = lazy(() => import('./pages/MyProfile'))
@@ -45,7 +47,8 @@ const PageLoader = () => (
 
 const App = () => {
   const location = useLocation();
-  const { setHeroReady } = useContext(AppContext);
+  const navigate = useNavigate();
+  const { setHeroReady, token, userData } = useContext(AppContext);
   // Show splash screen on home page load / refresh
   const [showSplash, setShowSplash] = useState(() => location.pathname === '/');
 
@@ -58,6 +61,32 @@ const App = () => {
     setHeroReady(true);
   };
 
+  // Route priority enforcement:
+  // 1. emailVerified === false -> /verify-email
+  // 2. emailVerified === true && profileCompleted === false -> /complete-profile
+  // 3. emailVerified === true && profileCompleted === true -> Normal access
+  useEffect(() => {
+    if (token && userData) {
+      const isEmailVerified = userData.emailVerified !== undefined ? userData.emailVerified : true
+      const isProfileCompleted = userData.profileCompleted !== undefined ? userData.profileCompleted : true
+
+      const currentPath = location.pathname.toLowerCase()
+      const isAuthPath = currentPath.startsWith('/login')
+      const isVerifyPath = currentPath === '/verify-email' || currentPath === '/verify_email' || currentPath === '/verify%20email'
+      const isCompleteProfilePath = currentPath === '/complete-profile' || currentPath === '/complete_profile' || currentPath === '/complete%20profile'
+
+      if (isEmailVerified === false) {
+        if (!isVerifyPath && !isAuthPath) {
+          navigate('/verify-email', { replace: true })
+        }
+      } else if (isProfileCompleted === false) {
+        if (!isCompleteProfilePath && !isAuthPath) {
+          navigate('/complete-profile', { replace: true })
+        }
+      }
+    }
+  }, [token, userData, location.pathname, navigate])
+
   // Define routes that should NOT have navbar/footer
   const isVideoCallRoute =
     location.pathname.startsWith('/video-call') ||
@@ -67,8 +96,9 @@ const App = () => {
     location.pathname.includes('video-call') ||
     location.pathname.includes('video%20call')
 
-  const hideLayoutRoutes = ["/login", "/verify"];
-  const shouldHideLayout = hideLayoutRoutes.includes(location.pathname) || isVideoCallRoute;
+  const normalizedCurrentPath = location.pathname.toLowerCase().replace(/%20|_/g, '-')
+  const hideLayoutRoutes = ["/login", "/verify", "/verify-email"];
+  const shouldHideLayout = hideLayoutRoutes.includes(normalizedCurrentPath) || isVideoCallRoute;
 
   const getBasePagePath = useCallback((pathname) => {
     if (!pathname) return '/'
@@ -96,6 +126,10 @@ const App = () => {
             <Suspense fallback={<PageLoader />}>
               <Routes location={location}>
                 {/* Space & Underscore URL Normalization Redirects */}
+                <Route path='/verify%20email' element={<Navigate to='/verify-email' replace />} />
+                <Route path='/verify_email' element={<Navigate to='/verify-email' replace />} />
+                <Route path='/complete%20profile' element={<Navigate to='/complete-profile' replace />} />
+                <Route path='/complete_profile' element={<Navigate to='/complete-profile' replace />} />
                 <Route path='/my%20appointments' element={<Navigate to='/my-appointments' replace />} />
                 <Route path='/my_appointments' element={<Navigate to='/my-appointments' replace />} />
                 <Route path='/my%20profile' element={<Navigate to='/my-profile' replace />} />
@@ -116,6 +150,16 @@ const App = () => {
                 <Route path='/doctors' element={<Doctors />} />
                 <Route path='/doctors/:speciality' element={<Doctors />} />
                 <Route path='/login' element={<Login />} />
+                <Route path='/verify-email' element={
+                  <ProtectedRoute context="profile" title="Verify Your Email" message="Please log in to verify your email">
+                    <VerifyEmail />
+                  </ProtectedRoute>
+                } />
+                <Route path='/complete-profile' element={
+                  <ProtectedRoute context="profile" title="Complete Your Profile" message="Please log in to complete your profile">
+                    <CompleteProfile />
+                  </ProtectedRoute>
+                } />
                 <Route path='/about' element={<About />} />
                 <Route path='/contact' element={<Contact />} />
                 <Route path='/Library' element={<Library />} />

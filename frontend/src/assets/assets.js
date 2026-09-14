@@ -49,6 +49,7 @@ import CBT_therapist from './CBT_therapist.webp'
 import Art_music_therapist from './Art_music_therapist.webp'
 import founder1 from './founder1.jpg'
 import founder2 from './founder2.jpg'
+import founder3 from './founder3.jpg'
 
 export const assets = {
     home,
@@ -70,7 +71,8 @@ export const assets = {
     stripe_logo,
     razorpay_logo,
     founder1,
-    founder2
+    founder2,
+    founder3
 }
 
 export const specialityData = [

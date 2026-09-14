@@ -24,7 +24,7 @@ const Login = () => {
   const redirectTitle = location.state?.title
   const redirectMessage = location.state?.message
   const redirectContext = location.state?.context
-  const { backendUrl, token, setToken } = useContext(AppContext)
+  const { backendUrl, token, setToken, userData } = useContext(AppContext)
 
   const getContextConfig = () => {
     const ctx = (redirectContext || '').toLowerCase()
@@ -98,21 +98,34 @@ const Login = () => {
 
   const onSubmitHandler = async (event) => {
     event.preventDefault()
+    const cleanEmail = email.trim().toLowerCase()
+    const cleanName = name.trim()
+
     if (state === 'Sign Up') {
-      const { data } = await axios.post(backendUrl + '/api/user/register', { name, email, password })
+      const { data } = await axios.post(backendUrl + '/api/user/register', { name: cleanName, email: cleanEmail, password })
 
       if (data.success) {
         localStorage.setItem('token', data.token)
         setToken(data.token)
+        toast.success('Account created! Please verify your email with the 6-digit code.')
+        navigate('/verify-email', { replace: true })
       } else {
         toast.error(data.message)
       }
     } else {
-      const { data } = await axios.post(backendUrl + '/api/user/login', { email, password })
+      const { data } = await axios.post(backendUrl + '/api/user/login', { email: cleanEmail, password })
 
       if (data.success) {
         localStorage.setItem('token', data.token)
         setToken(data.token)
+        if (data.userData?.emailVerified === false) {
+          navigate('/verify-email', { replace: true })
+        } else if (data.userData?.profileCompleted === false) {
+          navigate('/complete-profile', { replace: true })
+        } else {
+          const fromPath = location.state?.from?.pathname || '/'
+          navigate(fromPath, { replace: true })
+        }
       } else {
         toast.error(data.message)
       }
@@ -120,11 +133,17 @@ const Login = () => {
   }
 
   useEffect(() => {
-    if (token) {
-      const fromPath = location.state?.from?.pathname || '/'
-      navigate(fromPath)
+    if (token && userData) {
+      if (userData.emailVerified === false) {
+        navigate('/verify-email', { replace: true })
+      } else if (userData.profileCompleted === false) {
+        navigate('/complete-profile', { replace: true })
+      } else {
+        const fromPath = location.state?.from?.pathname || '/'
+        navigate(fromPath, { replace: true })
+      }
     }
-  }, [token])
+  }, [token, userData])
 
   return (
     <>

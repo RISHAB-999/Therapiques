@@ -43,17 +43,58 @@ export const coinPackages = [
     }
 ]
 
-export  const teamMembers = [
-    {
-      image: assets.founder2,
-      name: "Ishaan Jain",
-      title: "B.Tech",
-      description: "Founder & Backend Developer",
-    },
+export const teamMembers = [
     {
       image: assets.founder1,
       name: "Rishab Negi",
       title: "B.Tech",
-      description: "Co-Founder & Clinical Director",
+      education: "B.Tech",
+      description: "Co-Founder & Full-Stack AI Developer",
+      role: "Co-Founder & Full-Stack AI Developer",
+      imagePosition: "object-[center_35%]",
+      about: "Rishab has been involved across the full technical development of Therapique, working on both the product experience and its underlying functionality. He led the development of the platform's newer features and helped evolve Therapique from its original project into a more complete and interactive platform.",
+      contributions: [
+        "Frontend development",
+        "Backend development",
+        "AI chatbot",
+        "Video calling system",
+        "Library and notes experience",
+        "UI/UX improvements",
+        "Animations and interactive experiences",
+      ],
+    },
+    {
+      image: assets.founder2,
+      name: "Ishaan Jain",
+      title: "B.Tech",
+      education: "B.Tech",
+      description: "Co-Founder & Backend Developer",
+      role: "Co-Founder & Backend Developer",
+      imagePosition: "object-top",
+      about: "Ishaan contributed to the technical foundation of Therapique, with a primary focus on backend development and data management. He worked on the server-side systems that support the platform and helped establish its backend architecture.",
+      contributions: [
+        "Backend development",
+        "MongoDB",
+        "API development",
+        "Server-side architecture",
+        "Data management",
+      ],
+    },
+    {
+      image: assets.founder3,
+      name: "Tarun",
+      title: "B.Tech",
+      education: "B.Tech",
+      description: "Co-Founder & Frontend Developer",
+      role: "Co-Founder & Frontend Developer",
+      imagePosition: "object-[center_75%]",
+      about: "Tarun contributed to the frontend development of Therapique, helping shape the platform's user-facing experience. He also worked on the video-call experience and collaborated on bringing the product's interface and functionality together.",
+      contributions: [
+        "Frontend development",
+        "UI implementation",
+        "Video-call functionality",
+        "User interface development",
+        "Product collaboration",
+      ],
     },
   ];

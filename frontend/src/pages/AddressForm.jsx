@@ -27,13 +27,18 @@ const AddressForm = () => {
     useEffect(() => {
         if (userData) {
             const nameParts = (userData.name || "").split(" ")
-            const userAddr = userData.address || {}
+            let userAddr = userData.address || {}
+            if (typeof userAddr === 'string') {
+                try { userAddr = JSON.parse(userAddr) } catch(e) {}
+            }
+
+            const validPhone = (userData.phone && userData.phone !== '000000000000') ? userData.phone : ""
 
             setAddress({
                 firstName: nameParts[0] || "",
                 lastName: nameParts.slice(1).join(" ") || "",
                 email: userData.email || "",
-                phone: userData.phone || "8130758753",
+                phone: validPhone,
                 street: userAddr.street || userAddr.line1 || "",
                 city: userAddr.city || userAddr.line2 || "",
                 state: userAddr.state || "",
@@ -62,7 +67,7 @@ const AddressForm = () => {
                 firstName: address.firstName,
                 lastName: address.lastName,
                 email: address.email,
-                phone: address.phone || '8130758753',
+                phone: address.phone || (userData?.phone && userData.phone !== '000000000000' ? userData.phone : ''),
                 street: address.street,
                 line1: address.street,
                 line2: address.city,
@@ -72,19 +77,26 @@ const AddressForm = () => {
                 country: address.country
             }
 
-            // Sync with localStorage array capped at 2 addresses maximum
+            // Sync with user-scoped localStorage array capped at 2 addresses maximum
             let currentSaved = []
-            try {
-                const stored = localStorage.getItem('saved_addresses')
-                if (stored) currentSaved = JSON.parse(stored)
-            } catch (err) {}
+            if (userData?._id) {
+                try {
+                    const stored = localStorage.getItem(`saved_addresses_${userData._id}`)
+                    if (stored) currentSaved = JSON.parse(stored)
+                } catch (err) {}
+            }
 
             const updatedSaved = [newAddress, ...currentSaved.filter(a => (a.street || a.line1) !== newAddress.street)].slice(0, 2)
-            localStorage.setItem('saved_addresses', JSON.stringify(updatedSaved))
+            if (userData?._id) {
+                localStorage.setItem(`saved_addresses_${userData._id}`, JSON.stringify(updatedSaved))
+            }
+            localStorage.removeItem('saved_addresses')
 
             const formData = new FormData()
-            formData.append('name', `${address.firstName} ${address.lastName}`.trim() || userData.name || 'User')
-            formData.append('phone', address.phone || userData.phone || '8130758753')
+            formData.append('name', `${address.firstName} ${address.lastName}`.trim() || userData?.name || 'User')
+            if (address.phone) {
+                formData.append('phone', address.phone)
+            }
             formData.append('address', JSON.stringify(newAddress))
             formData.append('gender', userData?.gender || 'Not Selected')
             formData.append('dob', userData?.dob || '2000-01-01')

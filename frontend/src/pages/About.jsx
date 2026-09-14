@@ -1,12 +1,44 @@
-import React from 'react'
+import React, { useState } from 'react'
 import { useNavigate } from "react-router-dom"
 import ProfileCard from '../components/ProfileCard'
+import FounderModal from '../components/FounderModal'
 import { teamMembers } from '../data'
 import { motion } from 'motion/react'
 import { ScrollFadeInOut, SplitTextReveal, TypewriterParagraph, StaggerContainer, StaggerItem } from '../components/ScrollReveal'
 
+const founderCardVariants = [
+  {
+    hidden: { opacity: 0, y: 55, x: -28 },
+    visible: {
+      opacity: 1,
+      y: 0,
+      x: 0,
+      transition: { duration: 0.75, ease: [0.22, 1, 0.36, 1], delay: 0.05 }
+    }
+  },
+  {
+    hidden: { opacity: 0, y: 65, x: 0 },
+    visible: {
+      opacity: 1,
+      y: 0,
+      x: 0,
+      transition: { duration: 0.75, ease: [0.22, 1, 0.36, 1], delay: 0.18 }
+    }
+  },
+  {
+    hidden: { opacity: 0, y: 55, x: 28 },
+    visible: {
+      opacity: 1,
+      y: 0,
+      x: 0,
+      transition: { duration: 0.75, ease: [0.22, 1, 0.36, 1], delay: 0.3 }
+    }
+  }
+];
+
 const About = () => {
   const navigate = useNavigate()
+  const [selectedFounder, setSelectedFounder] = useState(null)
   return (
     <div className='overflow-hidden space-y-4 sm:space-y-8'>
       {/* 1. Hero Section with SplitTextReveal Heading & Typewriter Statement */}
@@ -81,7 +113,7 @@ const About = () => {
 
       {/* 3. Founders / Team Section with SplitTextReveal Heading & Staggered Cards */}
       <ScrollFadeInOut>
-        <section className="py-16 sm:py-20 px-6 text-center max-w-7xl mx-auto">
+        <section className="py-14 sm:py-18 px-4 sm:px-6 text-center max-w-7xl mx-auto">
           {/* Animated Heading with Underline and Styling */}
           <h2 className="font-therapique text-3xl sm:text-4xl text-gray-900 mb-3 tracking-tight">
             <SplitTextReveal as="span" text="Guided by" className="font-bold mr-2" />
@@ -90,28 +122,49 @@ const About = () => {
             <SplitTextReveal as="span" text="Purpose" delay={0.18} className="font-normal underline decoration-gray-400 underline-offset-4" />
           </h2>
 
-          <div className="max-w-2xl mx-auto mb-12">
+          <div className="max-w-2xl mx-auto mb-10 sm:mb-12">
             <TypewriterParagraph
               delay={0.15}
               wordDelay={0.048}
               text="At Therapique, we pride ourselves on our exceptional client care. Our therapists ensure that the Sofia values are upheld by each of our team members."
-              className="text-gray-600 text-sm sm:text-base font-medium"
+              className="text-gray-600 text-sm sm:text-base font-medium leading-relaxed"
             />
           </div>
 
-          {/* Staggered Team Cards */}
-          <StaggerContainer staggerDelay={0.12} className="flex flex-wrap justify-center gap-8">
+          {/* Staggered Converging Team Cards on Scroll (triggers on scroll down and scroll up) */}
+          <motion.div
+            initial="hidden"
+            whileInView="visible"
+            viewport={{ once: false, amount: 0.15, margin: "-40px 0px -40px 0px" }}
+            className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 sm:gap-8 max-w-5xl lg:max-w-6xl mx-auto justify-items-center items-stretch"
+          >
             {teamMembers.map((member, index) => (
-              <StaggerItem key={index}>
+              <motion.div
+                key={index}
+                variants={founderCardVariants[index] || founderCardVariants[1]}
+                style={{ willChange: "transform, opacity" }}
+                className={`w-full max-w-[340px] sm:max-w-[360px] flex justify-center ${
+                  index === 2 ? 'md:col-span-2 md:max-w-[360px] lg:col-span-1' : ''
+                }`}
+              >
                 <ProfileCard
                   image={member.image}
                   name={member.name}
                   title={member.title}
                   description={member.description}
+                  imagePosition={member.imagePosition}
+                  onClick={() => setSelectedFounder(member)}
                 />
-              </StaggerItem>
+              </motion.div>
             ))}
-          </StaggerContainer>
+          </motion.div>
+
+          {/* Founder Profile Modal */}
+          <FounderModal
+            founder={selectedFounder}
+            isOpen={!!selectedFounder}
+            onClose={() => setSelectedFounder(null)}
+          />
         </section>
       </ScrollFadeInOut>
 

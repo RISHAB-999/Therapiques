@@ -1,10 +1,42 @@
-import React, { useContext, useState, useEffect } from 'react'
+import React, { useContext, useState, useEffect, useRef } from 'react'
 import { AppContext } from '../context/AppContext'
 import { toast } from 'react-toastify'
 import axios from 'axios'
 import ImageCropperModal from '../components/ImageCropperModal'
 import CustomDropdown from '../components/ui/CustomDropdown'
 import DateInput from '../components/ui/DateInput'
+import { ChevronDown, X } from 'lucide-react'
+
+const COUNTRY_LIST = [
+  { code: 'IN', name: 'India', flag: '🇮🇳', dial_code: '+91', maxLength: 10, placeholder: '9876543210' },
+  { code: 'US', name: 'United States', flag: '🇺🇸', dial_code: '+1', maxLength: 10, placeholder: '2025550123' },
+  { code: 'GB', name: 'United Kingdom', flag: '🇬🇧', dial_code: '+44', maxLength: 11, placeholder: '7911123456' },
+  { code: 'CA', name: 'Canada', flag: '🇨🇦', dial_code: '+1', maxLength: 10, placeholder: '4165550199' },
+  { code: 'AU', name: 'Australia', flag: '🇦🇺', dial_code: '+61', maxLength: 9, placeholder: '412345678' },
+  { code: 'AE', name: 'UAE', flag: '🇦🇪', dial_code: '+971', maxLength: 9, placeholder: '501234567' },
+  { code: 'SG', name: 'Singapore', flag: '🇸🇬', dial_code: '+65', maxLength: 8, placeholder: '81234567' },
+  { code: 'DE', name: 'Germany', flag: '🇩🇪', dial_code: '+49', maxLength: 11, placeholder: '15123456789' },
+]
+
+const THERAPY_GOALS_LIST = [
+  'Not Specified',
+  'Managing emotions',
+  'Building healthier habits',
+  'Improving relationships',
+  'Coping with stress',
+  'Personal growth',
+  'Better understanding myself'
+]
+
+const SUPPORT_AREAS_LIST = [
+  'Anxiety',
+  'Stress',
+  'Sleep',
+  'Relationships',
+  'Career',
+  'Personal Growth',
+  'Other'
+]
 
 const MyProfile = () => {
     const { token, backendUrl, userData, setUserData, loadUserProfileData } = useContext(AppContext)
@@ -13,47 +45,99 @@ const MyProfile = () => {
     const [rawImgFile, setRawImgFile] = useState(null)
     const [showCropper, setShowCropper] = useState(false)
 
+    // Phone Country selector state
+    const [selectedCountry, setSelectedCountry] = useState(COUNTRY_LIST[0])
+    const [phoneDigits, setPhoneDigits] = useState('')
+    const [isCountryDropdownOpen, setIsCountryDropdownOpen] = useState(false)
+    const countryDropdownRef = useRef(null)
+
     const [savedAddresses, setSavedAddresses] = useState([])
 
+    // Close country dropdown on outside click
     useEffect(() => {
-        let list = []
-        try {
-            const stored = localStorage.getItem('saved_addresses')
-            if (stored) list = JSON.parse(stored)
-        } catch (e) {}
-
-        if (!list || list.length === 0) {
-            let userAddr = userData?.address || {}
-            if (typeof userAddr === 'string') {
-                try { userAddr = JSON.parse(userAddr) } catch(e) {}
+        const handleOutsideClick = (e) => {
+            if (countryDropdownRef.current && !countryDropdownRef.current.contains(e.target)) {
+                setIsCountryDropdownOpen(false)
             }
-            list = [
-                {
-                    type: 'Home',
-                    street: userAddr.street || userAddr.line1 || 'House No. 88, Shalimar Bagh',
-                    city: userAddr.city || userAddr.line2 || 'New Delhi',
-                    state: userAddr.state || 'Delhi',
-                    country: userAddr.country || 'India',
-                    zipcode: userAddr.zipcode || '110088'
-                },
-                {
-                    type: 'Office',
-                    street: 'Flat 304, Sector 6, Dwarka',
-                    city: 'New Delhi',
-                    state: 'Delhi',
-                    country: 'India',
-                    zipcode: '110075'
+        }
+        document.addEventListener('mousedown', handleOutsideClick)
+        return () => document.removeEventListener('mousedown', handleOutsideClick)
+    }, [])
+
+    // Pre-populate phone country and digits from userData.phone
+    useEffect(() => {
+        if (userData) {
+            const rawPhone = String(userData.phone || '').trim()
+            if (rawPhone && rawPhone !== '000000000000') {
+                const matched = COUNTRY_LIST.find((c) => rawPhone.startsWith(c.dial_code))
+                if (matched) {
+                    setSelectedCountry(matched)
+                    setPhoneDigits(rawPhone.slice(matched.dial_code.length).replace(/\D/g, ''))
+                } else {
+                    setPhoneDigits(rawPhone.replace(/\D/g, ''))
                 }
-            ]
-        } else if (list.length === 1) {
-            list.push({
-                type: 'Office',
-                street: 'Flat 304, Sector 6, Dwarka',
-                city: 'New Delhi',
-                state: 'Delhi',
-                country: 'India',
-                zipcode: '110075'
-            })
+            } else {
+                setPhoneDigits('')
+            }
+        }
+    }, [userData])
+
+    const toggleSupportArea = (area) => {
+        setUserData(prev => {
+            const current = Array.isArray(prev?.supportAreas) ? [...prev.supportAreas] : []
+            const exists = current.includes(area)
+            const updated = exists ? current.filter(a => a !== area) : [...current, area]
+            return { ...prev, supportAreas: updated }
+        })
+    }
+
+    useEffect(() => {
+        if (!userData) {
+            setSavedAddresses([])
+            return
+        }
+
+        let list = []
+        // 1. Try to load user-scoped saved addresses from localStorage
+        if (userData._id) {
+            try {
+                const stored = localStorage.getItem(`saved_addresses_${userData._id}`)
+                if (stored) list = JSON.parse(stored)
+            } catch (e) {}
+        }
+
+        // 2. If none in local storage, check if user has address in database
+        if (!list || list.length === 0) {
+            let userAddr = userData.address || {}
+            if (typeof userAddr === 'string') {
+                try { userAddr = JSON.parse(userAddr) } catch (e) {}
+            }
+
+            const hasValidDbAddress = userAddr && (userAddr.street || userAddr.line1 || userAddr.city || userAddr.line2)
+            if (hasValidDbAddress) {
+                list = [
+                    {
+                        type: userAddr.type || 'Home',
+                        street: userAddr.street || userAddr.line1 || '',
+                        city: userAddr.city || userAddr.line2 || '',
+                        state: userAddr.state || '',
+                        country: userAddr.country || 'India',
+                        zipcode: userAddr.zipcode || ''
+                    }
+                ]
+            } else {
+                // Brand new user with no address yet: initialize clean blank slot
+                list = [
+                    {
+                        type: 'Home',
+                        street: '',
+                        city: '',
+                        state: '',
+                        country: 'India',
+                        zipcode: ''
+                    }
+                ]
+            }
         }
 
         list = list.map((a, idx) => ({
@@ -91,17 +175,30 @@ const MyProfile = () => {
         try {
             const formData = new FormData();
 
+            const formattedPhone = phoneDigits ? `${selectedCountry.dial_code} ${phoneDigits}` : ''
+
             formData.append('name', userData.name || '')
-            formData.append('phone', userData.phone || '')
+            formData.append('phone', formattedPhone)
             formData.append('address', JSON.stringify(savedAddresses[0] || userData.address || {}))
             formData.append('gender', userData.gender || 'Not Selected')
             formData.append('dob', userData.dob || '')
-
+            if (userData.wellnessGoal !== undefined) {
+                formData.append('wellnessGoal', userData.wellnessGoal || '')
+            }
+            if (userData.supportAreas !== undefined) {
+                formData.append('supportAreas', JSON.stringify(userData.supportAreas || []))
+            }
+            if (userData.therapyPreference !== undefined) {
+                formData.append('therapyPreference', userData.therapyPreference || '')
+            }
             if (image) {
                 formData.append('image', image)
             }
 
-            localStorage.setItem('saved_addresses', JSON.stringify(savedAddresses))
+            if (userData?._id) {
+                localStorage.setItem(`saved_addresses_${userData._id}`, JSON.stringify(savedAddresses))
+            }
+            localStorage.removeItem('saved_addresses')
 
             const { data } = await axios.post(backendUrl + '/api/user/update-profile', formData, { headers: { token } })
 
@@ -217,18 +314,108 @@ const MyProfile = () => {
                             </div>
 
                             <div>
-                                <label className='text-[10px] sm:text-xs font-extrabold uppercase text-gray-500 block mb-1'>Phone Number</label>
+                                <label className='text-[10px] sm:text-xs font-extrabold uppercase text-gray-500 block mb-1.5'>Phone Number</label>
                                 {isEdit ? (
-                                    <input 
-                                        className='w-full bg-[#FAF5EE] rounded-xl p-2.5 sm:p-3 border border-[#EADBCE] focus:border-purple-600 focus:ring-2 focus:ring-purple-100 outline-none transition-all text-xs sm:text-sm font-medium' 
-                                        type="text" 
-                                        onChange={(e) => setUserData(prev => ({ ...prev, phone: e.target.value }))} 
-                                        value={userData.phone || ''} 
-                                        placeholder="Enter phone number"
-                                    />
+                                    <div className="relative flex items-center gap-1.5 sm:gap-2">
+                                        {/* Country Flag Dropdown Button */}
+                                        <div className="relative shrink-0" ref={countryDropdownRef}>
+                                            <button
+                                                type="button"
+                                                onClick={() => setIsCountryDropdownOpen((prev) => !prev)}
+                                                className="h-10 px-2 sm:px-2.5 bg-[#FAF5EE] border border-[#EADBCE] hover:border-black rounded-xl text-xs font-semibold text-gray-800 flex items-center gap-1 sm:gap-1.5 shrink-0 transition-all cursor-pointer shadow-2xs"
+                                                title="Select country code"
+                                            >
+                                                <span className="text-base sm:text-lg leading-none">{selectedCountry.flag}</span>
+                                                <span className="hidden sm:inline text-xs font-bold text-gray-700">{selectedCountry.name}</span>
+                                                <ChevronDown className={`w-3.5 h-3.5 text-gray-400 transition-transform ${isCountryDropdownOpen ? 'rotate-180' : ''}`} />
+                                            </button>
+
+                                            {/* Dropdown Menu */}
+                                            {isCountryDropdownOpen && (
+                                                <div className="absolute left-0 top-full mt-1.5 w-60 max-h-56 bg-white border border-[#EADBCE] rounded-2xl shadow-xl z-50 overflow-y-auto p-1.5 space-y-0.5">
+                                                    <div className="px-2.5 py-1 text-[10px] font-bold uppercase text-gray-400">Select Country</div>
+                                                    {COUNTRY_LIST.map((country) => (
+                                                        <button
+                                                            key={country.code}
+                                                            type="button"
+                                                            onClick={() => {
+                                                                setSelectedCountry(country)
+                                                                setIsCountryDropdownOpen(false)
+                                                                setUserData(prev => ({
+                                                                    ...prev,
+                                                                    phone: phoneDigits ? `${country.dial_code} ${phoneDigits}` : ''
+                                                                }))
+                                                            }}
+                                                            className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-medium transition-colors cursor-pointer ${
+                                                                selectedCountry.code === country.code
+                                                                    ? 'bg-black text-white font-bold'
+                                                                    : 'text-gray-700 hover:bg-[#FAF5EE]'
+                                                            }`}
+                                                        >
+                                                            <div className="flex items-center gap-2 truncate">
+                                                                <span className="text-sm">{country.flag}</span>
+                                                                <span className="truncate">{country.name}</span>
+                                                            </div>
+                                                            <span className={`text-[11px] font-semibold ${selectedCountry.code === country.code ? 'text-gray-300' : 'text-gray-400'}`}>
+                                                                {country.dial_code}
+                                                            </span>
+                                                        </button>
+                                                    ))}
+                                                </div>
+                                            )}
+                                        </div>
+
+                                        {/* Dial Code Badge */}
+                                        <div className="h-10 px-2 sm:px-2.5 bg-[#FAF5EE] border border-[#EADBCE] rounded-xl text-xs font-bold text-gray-700 flex items-center justify-center shrink-0 select-none shadow-2xs">
+                                            {selectedCountry.dial_code}
+                                        </div>
+
+                                        {/* Phone Number Numeric Input */}
+                                        <div className="relative flex-1 min-w-0">
+                                            <input
+                                                type="tel"
+                                                inputMode="numeric"
+                                                pattern="[0-9]*"
+                                                maxLength={selectedCountry.maxLength}
+                                                value={phoneDigits}
+                                                onChange={(e) => {
+                                                    const rawDigits = e.target.value.replace(/\D/g, '').slice(0, selectedCountry.maxLength)
+                                                    setPhoneDigits(rawDigits)
+                                                    setUserData(prev => ({
+                                                        ...prev,
+                                                        phone: rawDigits ? `${selectedCountry.dial_code} ${rawDigits}` : ''
+                                                    }))
+                                                }}
+                                                placeholder={selectedCountry.placeholder}
+                                                className="w-full h-10 px-3 pr-7 bg-[#FAF5EE] border border-[#EADBCE] rounded-xl text-xs sm:text-sm font-medium text-gray-900 placeholder:text-gray-400 focus:bg-white focus:border-black focus:ring-1 focus:ring-black outline-none transition-all"
+                                            />
+                                            {phoneDigits && (
+                                                <button
+                                                    type="button"
+                                                    onClick={() => {
+                                                        setPhoneDigits('')
+                                                        setUserData(prev => ({ ...prev, phone: '' }))
+                                                    }}
+                                                    className="absolute right-2 top-1/2 -translate-y-1/2 p-0.5 text-gray-400 hover:text-gray-600 rounded-full transition-colors cursor-pointer"
+                                                    title="Clear phone number"
+                                                >
+                                                    <X className="w-3.5 h-3.5" />
+                                                </button>
+                                            )}
+                                        </div>
+                                    </div>
                                 ) : (
-                                    <div className='bg-[#FAF5EE] rounded-xl p-2.5 sm:p-3 border border-[#EADBCE] text-xs sm:text-sm font-medium text-gray-900'>
-                                        <p>{userData.phone || '8130758753'}</p>
+                                    <div className='bg-[#FAF5EE] rounded-xl p-2.5 sm:p-3 border border-[#EADBCE] text-xs sm:text-sm font-medium'>
+                                        <p className={userData.phone && userData.phone !== '000000000000' ? 'text-gray-900 flex items-center gap-2' : 'text-gray-400 italic'}>
+                                            {userData.phone && userData.phone !== '000000000000' ? (
+                                                <>
+                                                    <span className="text-base leading-none">{selectedCountry?.flag || '📞'}</span>
+                                                    <span>{userData.phone}</span>
+                                                </>
+                                            ) : (
+                                                'Not Specified'
+                                            )}
+                                        </p>
                                     </div>
                                 )}
                             </div>
@@ -308,17 +495,34 @@ const MyProfile = () => {
                                                 />
                                             </div>
                                         ) : (
-                                            <div className='space-y-1 text-xs text-gray-700 font-medium pt-0.5 break-words'>
-                                                <p className='font-bold text-gray-900 leading-relaxed'>
-                                                    {addr.street || addr.line1}
-                                                </p>
-                                                <p className='text-gray-500'>
-                                                    {[addr.city, addr.state, addr.country, addr.zipcode].filter(Boolean).join(', ')}
-                                                </p>
-                                            </div>
+                                            (addr.street || addr.line1 || addr.city || addr.line2) ? (
+                                                <div className='space-y-1 text-xs text-gray-700 font-medium pt-0.5 break-words'>
+                                                    <p className='font-bold text-gray-900 leading-relaxed'>
+                                                        {addr.street || addr.line1}
+                                                    </p>
+                                                    <p className='text-gray-500'>
+                                                        {[addr.city, addr.state, addr.country, addr.zipcode].filter(Boolean).join(', ')}
+                                                    </p>
+                                                </div>
+                                            ) : (
+                                                <div className='space-y-1 text-xs text-gray-400 italic pt-0.5'>
+                                                    <p>No address saved yet. Click &quot;Edit Profile&quot; below to add your delivery address.</p>
+                                                </div>
+                                            )
                                         )}
                                     </div>
                                 ))}
+
+                                {isEdit && savedAddresses.length < 2 && (
+                                    <button
+                                        type='button'
+                                        onClick={() => setSavedAddresses(prev => [...prev, { type: 'Office', street: '', city: '', state: '', country: 'India', zipcode: '' }])}
+                                        className='w-full py-2.5 rounded-xl border border-dashed border-[#EADBCE] text-xs font-bold text-gray-700 hover:bg-[#F3E8DE] transition cursor-pointer mt-2 flex items-center justify-center gap-1.5'
+                                    >
+                                        <span>+</span>
+                                        <span>Add Second Address (Max 2)</span>
+                                    </button>
+                                )}
                             </div>
                         </div>
                     </div>
@@ -361,6 +565,87 @@ const MyProfile = () => {
                                         <p>{userData.dob || 'Not Specified'}</p>
                                     </div>
                                 )}
+                            </div>
+
+                            {/* Wellness & Therapy Goals */}
+                            <div className='pt-2 border-t border-[#EADBCE] space-y-3.5'>
+                                <div>
+                                    <label className='text-[10px] sm:text-xs font-extrabold uppercase text-gray-500 block mb-1'>Primary Wellness Goal</label>
+                                    {isEdit ? (
+                                        <CustomDropdown
+                                            value={userData.wellnessGoal || 'Not Specified'}
+                                            onChange={(val) => setUserData(prev => ({ ...prev, wellnessGoal: val === 'Not Specified' ? '' : val }))}
+                                            options={THERAPY_GOALS_LIST}
+                                            minWidth="w-full"
+                                        />
+                                    ) : (
+                                        <div className='bg-[#FAF5EE] rounded-xl p-2.5 sm:p-3 border border-[#EADBCE] text-xs sm:text-sm font-medium text-gray-900'>
+                                            <p className={userData.wellnessGoal ? 'text-gray-900' : 'text-gray-400 italic'}>
+                                                {userData.wellnessGoal || 'Not Specified'}
+                                            </p>
+                                        </div>
+                                    )}
+                                </div>
+
+                                <div>
+                                    <label className='text-[10px] sm:text-xs font-extrabold uppercase text-gray-500 block mb-1'>Therapy Preference</label>
+                                    {isEdit ? (
+                                        <CustomDropdown
+                                            value={userData.therapyPreference || 'Not Selected'}
+                                            onChange={(val) => setUserData(prev => ({ ...prev, therapyPreference: val }))}
+                                            options={['Not Selected', 'Individual', 'Couples', 'Teen', 'Family']}
+                                            minWidth="w-full"
+                                        />
+                                    ) : (
+                                        <div className='bg-[#FAF5EE] rounded-xl p-2.5 sm:p-3 border border-[#EADBCE] text-xs sm:text-sm font-medium text-gray-900'>
+                                            <p className={userData.therapyPreference ? 'text-gray-900' : 'text-gray-400 italic'}>
+                                                {userData.therapyPreference || 'Not Specified'}
+                                            </p>
+                                        </div>
+                                    )}
+                                </div>
+
+                                <div>
+                                    <label className='text-[10px] sm:text-xs font-extrabold uppercase text-gray-500 block mb-1'>
+                                        Support Areas {isEdit && <span className="font-normal text-gray-400 lowercase">(click to select/remove)</span>}
+                                    </label>
+                                    {isEdit ? (
+                                        <div className='flex flex-wrap gap-1.5 pt-1'>
+                                            {SUPPORT_AREAS_LIST.map((area) => {
+                                                const isSelected = Array.isArray(userData.supportAreas) && userData.supportAreas.includes(area)
+                                                return (
+                                                    <button
+                                                        key={area}
+                                                        type='button'
+                                                        onClick={() => toggleSupportArea(area)}
+                                                        className={`px-3 py-1.5 rounded-full text-xs font-bold transition-all duration-200 cursor-pointer flex items-center gap-1.5 border ${
+                                                            isSelected
+                                                                ? 'bg-black text-white border-black shadow-xs scale-105'
+                                                                : 'bg-[#FAF5EE] text-gray-700 border-[#EADBCE] hover:bg-white hover:border-gray-400'
+                                                        }`}
+                                                    >
+                                                        {isSelected && <span className="text-white text-xs font-black">✓</span>}
+                                                        <span>{area}</span>
+                                                    </button>
+                                                )
+                                            })}
+                                        </div>
+                                    ) : (
+                                        Array.isArray(userData.supportAreas) && userData.supportAreas.length > 0 ? (
+                                            <div className='flex flex-wrap gap-1.5 pt-0.5'>
+                                                {userData.supportAreas.map((area, idx) => (
+                                                    <span key={idx} className='bg-[#FAF5EE] text-gray-800 text-[11px] font-semibold px-2.5 py-1 rounded-full border border-[#EADBCE]'>
+                                                        {area}
+                                                    </span>
+                                                ))}
+                                            </div>
+                                        ) : (
+                                            <div className='bg-[#FAF5EE] rounded-xl p-2.5 sm:p-3 border border-[#EADBCE] text-xs sm:text-sm font-medium text-gray-400 italic'>
+                                                Not Specified
+                                            </div>
+                                        )
+                                    )}
+                                </div>
                             </div>
                         </div>
                     </div>

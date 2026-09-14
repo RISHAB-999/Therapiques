@@ -20,18 +20,4 @@ export const categories = [
 
 export const dummyBooks = [];
 export const dummyOrders = [];
-export const dummyAddress = [
-  {
-    type: 'Home',
-    firstName: 'Rishab',
-    lastName: 'Negi',
-    email: 'rishabn090@gmail.com',
-    phone: '8130758753',
-    street: 'Flat 304, Sector 6, Dwarka',
-    line1: 'Flat 304, Sector 6, Dwarka',
-    city: 'New Delhi',
-    state: 'Delhi',
-    zipcode: '110075',
-    country: 'India'
-  }
-];
+export const dummyAddress = [];

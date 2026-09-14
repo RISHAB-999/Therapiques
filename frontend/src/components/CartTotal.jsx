@@ -14,21 +14,6 @@ const TokenCoinSVG = ({ className = "w-6 h-6" }) => (
     </svg>
 )
 
-const DEFAULT_FALLBACK_ADDRESS = {
-    type: 'Home',
-    firstName: 'Rishab',
-    lastName: 'Negi',
-    email: 'rishabn090@gmail.com',
-    phone: '8130758753',
-    street: 'Flat 304, Sector 6, Dwarka',
-    line1: 'Flat 304, Sector 6, Dwarka',
-    line2: '',
-    city: 'New Delhi',
-    state: 'Delhi',
-    zipcode: '110075',
-    country: 'India'
-}
-
 const CartTotal = () => {
     const { navigate, books = [], currency, cartItems = {}, setCartItems, method, setMethod, getCartAmount, getCartCount, getBookPriceWithFormat, delivery_charges, backendUrl } = useContext(ShopContext)
     const { userData } = useContext(AppContext)
@@ -40,10 +25,12 @@ const CartTotal = () => {
     // Sync saved shipping addresses (MAX 2 ADDRESSES LIMIT)
     useEffect(() => {
         let saved = []
-        try {
-            const stored = localStorage.getItem('saved_addresses')
-            if (stored) saved = JSON.parse(stored)
-        } catch(e) {}
+        if (userData?._id) {
+            try {
+                const stored = localStorage.getItem(`saved_addresses_${userData._id}`)
+                if (stored) saved = JSON.parse(stored)
+            } catch(e) {}
+        }
 
         let initialList = []
         if (Array.isArray(saved) && saved.length > 0) {
@@ -53,34 +40,34 @@ const CartTotal = () => {
             if (typeof userAddr === 'string') {
                 try { userAddr = JSON.parse(userAddr) } catch(e) {}
             }
-            const profileAddr = {
-                firstName: userData.name?.split(' ')[0] || userAddr.firstName || 'Rishab',
-                lastName: userData.name?.split(' ').slice(1).join(' ') || userAddr.lastName || 'Negi',
-                email: userData.email || userAddr.email || 'rishabn090@gmail.com',
-                phone: userData.phone || userAddr.phone || '8130758753',
-                street: userAddr.street || userAddr.line1 || 'Flat 304, Sector 6, Dwarka',
-                line1: userAddr.line1 || userAddr.street || 'Flat 304, Sector 6, Dwarka',
-                line2: userAddr.line2 || '',
-                city: userAddr.city || 'New Delhi',
-                state: userAddr.state || 'Delhi',
-                zipcode: userAddr.zipcode || userAddr.pincode || '110075',
-                country: userAddr.country || 'India'
+            if (userAddr && (userAddr.street || userAddr.line1 || userAddr.city || userAddr.line2)) {
+                const profileAddr = {
+                    firstName: userData.name?.split(' ')[0] || userAddr.firstName || '',
+                    lastName: userData.name?.split(' ').slice(1).join(' ') || userAddr.lastName || '',
+                    email: userData.email || userAddr.email || '',
+                    phone: (userData.phone && userData.phone !== '000000000000') ? userData.phone : (userAddr.phone || ''),
+                    street: userAddr.street || userAddr.line1 || '',
+                    line1: userAddr.line1 || userAddr.street || '',
+                    line2: userAddr.line2 || '',
+                    city: userAddr.city || '',
+                    state: userAddr.state || '',
+                    zipcode: userAddr.zipcode || userAddr.pincode || '',
+                    country: userAddr.country || 'India'
+                }
+                initialList = [profileAddr]
             }
-            initialList = [profileAddr]
-        } else if (Array.isArray(dummyAddress) && dummyAddress.length > 0) {
-            initialList = dummyAddress.slice(0, 2)
-        } else {
-            initialList = [DEFAULT_FALLBACK_ADDRESS]
         }
 
-        // Keep strictly unique & max 2 saved addresses
+        // Keep strictly unique & max 2 saved addresses with actual street
         const uniqueAddresses = initialList.filter((addr, index, self) => 
-            addr && index === self.findIndex((a) => a && (a.street || a.line1) === (addr.street || addr.line1))
+            addr && (addr.street || addr.line1) && index === self.findIndex((a) => a && (a.street || a.line1) === (addr.street || addr.line1))
         ).slice(0, 2)
 
         setAddresses(uniqueAddresses)
-        if (uniqueAddresses.length > 0 && !selectedaddress) {
+        if (uniqueAddresses.length > 0 && (!selectedaddress || !uniqueAddresses.some(a => (a.street || a.line1) === (selectedaddress.street || selectedaddress.line1)))) {
             setSelectedAddress(uniqueAddresses[0])
+        } else if (uniqueAddresses.length === 0) {
+            setSelectedAddress(null)
         }
     }, [userData])
 
@@ -158,7 +145,12 @@ const CartTotal = () => {
 
         const cartAmt = getCartAmount ? getCartAmount() : 0;
         const totalAmount = cartAmt + delivery_charges + (cartAmt * 2) / 100;
-        const activeAddr = selectedaddress || addresses[0] || DEFAULT_FALLBACK_ADDRESS;
+        const activeAddr = selectedaddress || addresses[0];
+
+        if (!activeAddr || !(activeAddr.street || activeAddr.line1)) {
+            toast.error("Please add a shipping address before proceeding with your order");
+            return navigate('/address-form');
+        }
 
         try {
             setLoading(true);
@@ -219,7 +211,10 @@ const CartTotal = () => {
         e.stopPropagation();
         const updated = addresses.filter(a => (a.street || a.line1) !== (addrToRemove.street || addrToRemove.line1));
         setAddresses(updated);
-        localStorage.setItem('saved_addresses', JSON.stringify(updated));
+        if (userData?._id) {
+            localStorage.setItem(`saved_addresses_${userData._id}`, JSON.stringify(updated));
+        }
+        localStorage.removeItem('saved_addresses');
 
         if ((selectedaddress?.street || selectedaddress?.line1) === (addrToRemove.street || addrToRemove.line1)) {
             setSelectedAddress(updated[0] || null);
@@ -231,9 +226,9 @@ const CartTotal = () => {
     const grandTotal = Math.round(cartAmt > 0 ? cartAmt + delivery_charges + (cartAmt * 2) / 100 : 0);
     const activeAddressDisplay = selectedaddress || addresses[0];
 
-    const formattedAddressStr = activeAddressDisplay
+    const formattedAddressStr = activeAddressDisplay && (activeAddressDisplay.street || activeAddressDisplay.line1)
         ? [activeAddressDisplay.street || activeAddressDisplay.line1, activeAddressDisplay.city, activeAddressDisplay.state, activeAddressDisplay.country].filter(Boolean).join(', ')
-        : "Flat 304, Sector 6, Dwarka, New Delhi, Delhi, India";
+        : "No delivery address added. Click Change or Add Address to set shipping location.";
 
     return (
         <div className='space-y-5'>

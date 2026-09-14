@@ -18,7 +18,8 @@ import {
     sendOrderStatusUpdateEmail,
     sendContactFormEmails,
     sendNewsletterEmails,
-    sendUserRegistrationEmails
+    sendUserRegistrationEmails,
+    sendSignupOtpEmail
 } from '../services/emailService.js';
 import { COIN_PACKAGES } from '../constants/coinPackages.js';
 import newsletterModel from "../models/newsletterModel.js";
@@ -46,49 +47,232 @@ const registerUser = async (req, res) => {
         }
 
         const normalizedEmail = email.toLowerCase().trim();
+        const escapedEmail = normalizedEmail.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
-        // Check if user already exists
-        const exists = await userModel.findOne({ email: normalizedEmail });
+        // Check if user already exists (case-insensitive)
+        const exists = await userModel.findOne({ 
+            email: { $regex: new RegExp(`^${escapedEmail}$`, 'i') } 
+        });
         if (exists) {
-            return res.json({ success: false, message: "User already exists" });
+            return res.json({ success: false, message: "An account with this email already exists. Please log in instead." });
         }
 
         // hashing user password
         const salt = await bcrypt.genSalt(10); // the more no. round the more time it will take
         const hashedPassword = await bcrypt.hash(password, salt)
 
+        // Generate 6-digit numeric OTP and SHA-256 hash
+        const otp = crypto.randomInt(100000, 1000000).toString();
+        const hashedOtp = crypto.createHash('sha256').update(otp).digest('hex');
+
         const userData = {
             name: name.trim(),
             email: normalizedEmail,
             password: hashedPassword,
+            profileCompleted: false,
+            emailVerified: false,
+            verifyOtp: hashedOtp,
+            verifyOtpExpireAt: Date.now() + 10 * 60 * 1000,
+            verifyOtpAttempts: 0,
+            verifyOtpLastSentAt: Date.now()
         }
 
         const newUser = new userModel(userData)
         const user = await newUser.save()
         const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET)
 
-        // Send Welcome email to user and alert to admin (therapique.official@gmail.com)
+        // Send OTP verification email to user
+        const emailRes = await sendSignupOtpEmail({
+            email: user.email,
+            name: user.name,
+            otp
+        });
+
+        if (emailRes && emailRes.success === false) {
+            return res.json({
+                success: false,
+                message: "Account created, but verification email failed to send. Please check your email or click Resend Code."
+            });
+        }
+
+        // Send Welcome email to user and alert to admin
         sendUserRegistrationEmails({
             name: user.name,
             email: user.email,
             userId: user._id
         }).catch(err => console.log('Registration email error:', err.message));
 
-        res.json({ success: true, token })
+        res.json({
+            success: true,
+            token,
+            userData: {
+                _id: user._id,
+                name: user.name,
+                email: user.email,
+                emailVerified: false,
+                profileCompleted: false
+            }
+        })
 
     } catch (error) {
         console.log(error)
+        if (error.code === 11000) {
+            return res.json({ success: false, message: "An account with this email already exists. Please log in instead." });
+        }
         res.json({ success: false, message: error.message })
     }
 }
 
+// API to verify email OTP
+const verifyEmailOtp = async (req, res) => {
+    try {
+        const { userId, otp } = req.body;
+
+        if (!userId) {
+            return res.json({ success: false, message: "Authentication required" });
+        }
+
+        if (!otp || typeof otp !== 'string' || otp.trim().length !== 6) {
+            return res.json({ success: false, message: "Please provide a valid 6-digit verification code" });
+        }
+
+        const user = await userModel.findById(userId);
+        if (!user) {
+            return res.json({ success: false, message: "User not found" });
+        }
+
+        const alreadyVerified = user.emailVerified !== undefined ? user.emailVerified : true;
+        if (alreadyVerified && user.verifyOtp === "") {
+            return res.json({
+                success: true,
+                message: "Email is already verified",
+                userData: {
+                    _id: user._id,
+                    name: user.name,
+                    email: user.email,
+                    emailVerified: true,
+                    profileCompleted: user.profileCompleted !== undefined ? user.profileCompleted : true
+                }
+            });
+        }
+
+        // Check maximum failed attempts
+        if (user.verifyOtpAttempts >= 5) {
+            user.verifyOtp = "";
+            user.verifyOtpExpireAt = 0;
+            await user.save();
+            return res.json({ success: false, message: "Too many failed attempts. Please request a new verification code." });
+        }
+
+        // Check expiration
+        if (!user.verifyOtpExpireAt || Date.now() > user.verifyOtpExpireAt) {
+            return res.json({ success: false, message: "This verification code has expired. Please request a new one." });
+        }
+
+        // Compare SHA-256 hash
+        const cleanOtp = otp.trim();
+        const inputHash = crypto.createHash('sha256').update(cleanOtp).digest('hex');
+
+        if (inputHash !== user.verifyOtp) {
+            user.verifyOtpAttempts = (user.verifyOtpAttempts || 0) + 1;
+            await user.save();
+            return res.json({ success: false, message: "Invalid verification code. Please try again." });
+        }
+
+        // Correct OTP: Mark verified and invalidate OTP
+        user.emailVerified = true;
+        user.verifyOtp = "";
+        user.verifyOtpExpireAt = 0;
+        user.verifyOtpAttempts = 0;
+        await user.save();
+
+        const profileCompleted = user.profileCompleted !== undefined ? user.profileCompleted : false;
+
+        return res.json({
+            success: true,
+            message: "Email verified successfully",
+            userData: {
+                _id: user._id,
+                name: user.name,
+                email: user.email,
+                emailVerified: true,
+                profileCompleted
+            }
+        });
+    } catch (error) {
+        console.log('verifyEmailOtp error:', error);
+        return res.json({ success: false, message: error.message });
+    }
+};
+
+// API to resend email OTP
+const resendEmailOtp = async (req, res) => {
+    try {
+        const { userId } = req.body;
+
+        if (!userId) {
+            return res.json({ success: false, message: "Authentication required" });
+        }
+
+        const user = await userModel.findById(userId);
+        if (!user) {
+            return res.json({ success: false, message: "User not found" });
+        }
+
+        const isVerified = user.emailVerified !== undefined ? user.emailVerified : false;
+        if (isVerified && user.verifyOtp === "") {
+            return res.json({ success: false, message: "Email is already verified" });
+        }
+
+        // 60-second cooldown enforcement
+        const cooldownMs = 60 * 1000;
+        const timePassed = Date.now() - (user.verifyOtpLastSentAt || 0);
+        if (timePassed < cooldownMs) {
+            const remainingSec = Math.ceil((cooldownMs - timePassed) / 1000);
+            return res.json({ success: false, message: `Please wait ${remainingSec}s before requesting a new code.` });
+        }
+
+        // Generate new 6-digit OTP and update hash
+        const otp = crypto.randomInt(100000, 1000000).toString();
+        const hashedOtp = crypto.createHash('sha256').update(otp).digest('hex');
+
+        user.verifyOtp = hashedOtp;
+        user.verifyOtpExpireAt = Date.now() + 10 * 60 * 1000;
+        user.verifyOtpAttempts = 0;
+        user.verifyOtpLastSentAt = Date.now();
+        await user.save();
+
+        const emailRes = await sendSignupOtpEmail({
+            email: user.email,
+            name: user.name,
+            otp
+        });
+
+        if (emailRes && emailRes.success === false) {
+            return res.json({ success: false, message: "Failed to send verification email. Please try again." });
+        }
+
+        return res.json({ success: true, message: "A new verification code has been sent to your email." });
+    } catch (error) {
+        console.log('resendEmailOtp error:', error);
+        return res.json({ success: false, message: error.message });
+    }
+};
 
 // API to login user
 const loginUser = async (req, res) => {
 
     try {
         const { email, password } = req.body;
-        const user = await userModel.findOne({ email })
+        if (!email || !password) {
+            return res.json({ success: false, message: "Please provide email and password" })
+        }
+
+        const normalizedEmail = email.toLowerCase().trim();
+        const escapedEmail = normalizedEmail.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        const user = await userModel.findOne({ 
+            email: { $regex: new RegExp(`^${escapedEmail}$`, 'i') } 
+        });
 
         if (!user) {
             return res.json({ success: false, message: "User does not exist" })
@@ -98,7 +282,19 @@ const loginUser = async (req, res) => {
 
         if (isMatch) {
             const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET)
-            res.json({ success: true, token })
+            const emailVerified = user.emailVerified !== undefined ? user.emailVerified : true
+            const profileCompleted = user.profileCompleted !== undefined ? user.profileCompleted : true
+            res.json({
+                success: true,
+                token,
+                userData: {
+                    _id: user._id,
+                    name: user.name,
+                    email: user.email,
+                    emailVerified,
+                    profileCompleted
+                }
+            })
         }
         else {
             res.json({ success: false, message: "Invalid credentials" })
@@ -114,7 +310,18 @@ const getProfile = async (req, res) => {
 
     try {
         const { userId } = req.body
-        const userData = await userModel.findById(userId).select('-password').lean()
+        const user = await userModel.findById(userId).select('-password').lean()
+        if (!user) {
+            return res.json({ success: false, message: "User not found" })
+        }
+
+        const emailVerified = user.emailVerified !== undefined ? user.emailVerified : true
+        const profileCompleted = user.profileCompleted !== undefined ? user.profileCompleted : true
+        const userData = {
+            ...user,
+            emailVerified,
+            profileCompleted
+        }
 
         res.json({ success: true, userData })
 
@@ -127,7 +334,7 @@ const getProfile = async (req, res) => {
 const updateProfile = async (req, res) => {
     try {
         const userId = req.userId || req.body.userId
-        const { name, phone, address, dob, gender } = req.body
+        const { name, phone, address, dob, gender, profileCompleted, wellnessGoal, supportAreas, therapyPreference } = req.body
         const imageFile = req.file
 
         if (!userId) {
@@ -143,12 +350,27 @@ const updateProfile = async (req, res) => {
             }
         }
 
+        let parsedSupportAreas = supportAreas
+        if (typeof supportAreas === 'string') {
+            try {
+                parsedSupportAreas = JSON.parse(supportAreas)
+            } catch (e) {
+                parsedSupportAreas = supportAreas.split(',').map(s => s.trim()).filter(Boolean)
+            }
+        }
+
         const updateData = {}
         if (name !== undefined) updateData.name = name
         if (phone !== undefined) updateData.phone = phone
         if (parsedAddress !== undefined) updateData.address = parsedAddress
         if (dob !== undefined) updateData.dob = dob
         if (gender !== undefined) updateData.gender = gender
+        if (profileCompleted !== undefined) {
+            updateData.profileCompleted = profileCompleted === true || profileCompleted === 'true'
+        }
+        if (wellnessGoal !== undefined) updateData.wellnessGoal = wellnessGoal
+        if (parsedSupportAreas !== undefined) updateData.supportAreas = parsedSupportAreas
+        if (therapyPreference !== undefined) updateData.therapyPreference = therapyPreference
 
         if (imageFile) {
             // upload image to cloudinary
@@ -156,7 +378,8 @@ const updateProfile = async (req, res) => {
             updateData.image = imageUpload.secure_url
         }
 
-        const updatedUser = await userModel.findByIdAndUpdate(userId, updateData, { new: true })
+        const updatedUser = await userModel.findByIdAndUpdate(userId, updateData, { new: true }).select('-password').lean()
+        const resolvedProfileCompleted = updatedUser.profileCompleted !== undefined ? updatedUser.profileCompleted : true
 
         // Synchronize updated user profile image & info across all their past & active appointments
         const appointmentUserUpdates = {}
@@ -169,7 +392,7 @@ const updateProfile = async (req, res) => {
             await appointmentModel.updateMany({ userId }, { $set: appointmentUserUpdates }).catch(err => console.log("Appointment user sync error:", err.message))
         }
 
-        res.json({ success: true, message: 'Profile Updated', userData: updatedUser })
+        res.json({ success: true, message: 'Profile Updated', userData: { ...updatedUser, profileCompleted: resolvedProfileCompleted } })
 
     } catch (error) {
         console.log("Error in updateProfile:", error)
@@ -1278,6 +1501,8 @@ const verifyAppointmentJoinUser = async (req, res) => {
 export { 
     registerUser, 
     loginUser, 
+    verifyEmailOtp,
+    resendEmailOtp,
     getProfile, 
     updateProfile, 
     listAppointment, 
