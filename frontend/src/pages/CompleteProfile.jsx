@@ -364,7 +364,7 @@ const CompleteProfile = () => {
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 placeholder="Your full name"
-                className="mt-1.5 w-full px-4 py-2.5 bg-[#FAF5EE]/40 border border-[#EADBCE] rounded-xl text-sm text-gray-900 placeholder:text-gray-400 focus:bg-white focus:border-black focus:ring-1 focus:ring-black outline-none transition-all"
+                className="mt-1.5 w-full px-4 py-2.5 bg-[#FAF5EE]/40 border border-[#EADBCE] rounded-xl text-sm text-gray-900 placeholder:text-gray-400 focus:bg-white focus:border-black outline-none transition-all"
               />
             </div>
 
@@ -440,7 +440,7 @@ const CompleteProfile = () => {
                         setPhoneDigits(rawDigits)
                       }}
                       placeholder={selectedCountry.placeholder}
-                      className="w-full h-10 px-3 pr-7 bg-[#FAF5EE]/40 border border-[#EADBCE] rounded-xl text-xs sm:text-sm font-medium text-gray-900 placeholder:text-gray-400 focus:bg-white focus:border-black focus:ring-1 focus:ring-black outline-none transition-all"
+                      className="w-full h-10 px-3 pr-7 bg-[#FAF5EE]/40 border border-[#EADBCE] rounded-xl text-xs sm:text-sm font-medium text-gray-900 placeholder:text-gray-400 focus:bg-white focus:border-black outline-none transition-all"
                     />
                     {phoneDigits && (
                       <button
@@ -530,7 +530,7 @@ const CompleteProfile = () => {
                   value={street}
                   onChange={(e) => setStreet(e.target.value)}
                   placeholder="Street Address / Flat / Building No."
-                  className="w-full h-10 px-3 bg-[#FAF5EE]/40 border border-[#EADBCE] rounded-xl text-xs sm:text-sm font-medium text-gray-900 placeholder:text-gray-400 focus:bg-white focus:border-black focus:ring-1 focus:ring-black outline-none transition-all"
+                  className="w-full h-10 px-3 bg-[#FAF5EE]/40 border border-[#EADBCE] rounded-xl text-xs sm:text-sm font-medium text-gray-900 placeholder:text-gray-400 focus:bg-white focus:border-black outline-none transition-all"
                 />
 
                 {/* City & State */}
@@ -540,14 +540,14 @@ const CompleteProfile = () => {
                     value={city}
                     onChange={(e) => setCity(e.target.value)}
                     placeholder="City / District"
-                    className="w-full h-10 px-3 bg-[#FAF5EE]/40 border border-[#EADBCE] rounded-xl text-xs sm:text-sm font-medium text-gray-900 placeholder:text-gray-400 focus:bg-white focus:border-black focus:ring-1 focus:ring-black outline-none transition-all"
+                    className="w-full h-10 px-3 bg-[#FAF5EE]/40 border border-[#EADBCE] rounded-xl text-xs sm:text-sm font-medium text-gray-900 placeholder:text-gray-400 focus:bg-white focus:border-black outline-none transition-all"
                   />
                   <input
                     type="text"
                     value={state}
                     onChange={(e) => setState(e.target.value)}
                     placeholder="State / Province"
-                    className="w-full h-10 px-3 bg-[#FAF5EE]/40 border border-[#EADBCE] rounded-xl text-xs sm:text-sm font-medium text-gray-900 placeholder:text-gray-400 focus:bg-white focus:border-black focus:ring-1 focus:ring-black outline-none transition-all"
+                    className="w-full h-10 px-3 bg-[#FAF5EE]/40 border border-[#EADBCE] rounded-xl text-xs sm:text-sm font-medium text-gray-900 placeholder:text-gray-400 focus:bg-white focus:border-black outline-none transition-all"
                   />
                 </div>
 
@@ -558,14 +558,14 @@ const CompleteProfile = () => {
                     value={zipcode}
                     onChange={(e) => setZipcode(e.target.value)}
                     placeholder="PIN / Postal Code"
-                    className="w-full h-10 px-3 bg-[#FAF5EE]/40 border border-[#EADBCE] rounded-xl text-xs sm:text-sm font-medium text-gray-900 placeholder:text-gray-400 focus:bg-white focus:border-black focus:ring-1 focus:ring-black outline-none transition-all"
+                    className="w-full h-10 px-3 bg-[#FAF5EE]/40 border border-[#EADBCE] rounded-xl text-xs sm:text-sm font-medium text-gray-900 placeholder:text-gray-400 focus:bg-white focus:border-black outline-none transition-all"
                   />
                   <input
                     type="text"
                     value={country}
                     onChange={(e) => setCountry(e.target.value)}
                     placeholder="Country"
-                    className="w-full h-10 px-3 bg-[#FAF5EE]/40 border border-[#EADBCE] rounded-xl text-xs sm:text-sm font-medium text-gray-900 placeholder:text-gray-400 focus:bg-white focus:border-black focus:ring-1 focus:ring-black outline-none transition-all"
+                    className="w-full h-10 px-3 bg-[#FAF5EE]/40 border border-[#EADBCE] rounded-xl text-xs sm:text-sm font-medium text-gray-900 placeholder:text-gray-400 focus:bg-white focus:border-black outline-none transition-all"
                   />
                 </div>
               </div>
