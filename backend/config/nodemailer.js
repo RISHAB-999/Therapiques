@@ -1,5 +1,10 @@
 import nodemailer from 'nodemailer';
+import dns from 'dns';
 import shared from 'nodemailer/lib/shared/index.js';
+
+if (dns && dns.setDefaultResultOrder) {
+    dns.setDefaultResultOrder('ipv4first');
+}
 
 // Force Nodemailer to strictly use IPv4 and never pick unreachable IPv6 addresses
 if (shared && shared.networkInterfaces) {
@@ -20,28 +25,24 @@ export const getTransporter = () => {
 
         if (user && pass) {
             const host = process.env.SMTP_HOST || 'smtp.gmail.com';
-            const isGmail = host.includes('gmail');
+            const port = Number(process.env.SMTP_PORT) || 465;
 
-            if (isGmail) {
-                transporter = nodemailer.createTransport({
-                    service: 'gmail',
-                    auth: { user, pass },
-                    pool: true,
-                    maxConnections: 5,
-                    maxMessages: Infinity
-                });
-            } else {
-                transporter = nodemailer.createTransport({
-                    host,
-                    port: Number(process.env.SMTP_PORT) || 465,
-                    secure: Number(process.env.SMTP_PORT) === 465 || !process.env.SMTP_PORT,
-                    auth: { user, pass },
-                    pool: true,
-                    maxConnections: 5,
-                    maxMessages: Infinity,
-                    family: 4
-                });
-            }
+            transporter = nodemailer.createTransport({
+                host,
+                port,
+                secure: port === 465,
+                auth: { user, pass },
+                pool: true,
+                maxConnections: 5,
+                maxMessages: Infinity,
+                family: 4, // Strictly force IPv4
+                lookup: (hostname, options, callback) => {
+                    dns.lookup(hostname, { family: 4 }, callback);
+                },
+                tls: {
+                    rejectUnauthorized: false
+                }
+            });
         }
     }
     return transporter;
