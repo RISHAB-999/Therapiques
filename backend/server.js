@@ -36,23 +36,35 @@ connectDB().then(() => {
     // Defer appointment image sync to background — runs 5s after startup to avoid blocking initial requests
     setTimeout(async () => {
         try {
-            const doctors = await doctorModel.find({}).select('image name').lean();
+            const [doctors, users] = await Promise.all([
+                doctorModel.find({}).select('image name').lean(),
+                userModel.find({}).select('image name').lean()
+            ]);
+
+            // Use bulkWrite instead of N sequential updateMany calls
+            const bulkOps = [];
             for (const doc of doctors) {
                 if (doc.image) {
-                    await appointmentModel.updateMany(
-                        { docId: doc._id.toString() },
-                        { $set: { "docData.image": doc.image, "docData.name": doc.name } }
-                    );
+                    bulkOps.push({
+                        updateMany: {
+                            filter: { docId: doc._id.toString() },
+                            update: { $set: { "docData.image": doc.image, "docData.name": doc.name } }
+                        }
+                    });
                 }
             }
-            const users = await userModel.find({}).select('image name').lean();
             for (const user of users) {
                 if (user.image) {
-                    await appointmentModel.updateMany(
-                        { userId: user._id.toString() },
-                        { $set: { "userData.image": user.image, "userData.name": user.name } }
-                    );
+                    bulkOps.push({
+                        updateMany: {
+                            filter: { userId: user._id.toString() },
+                            update: { $set: { "userData.image": user.image, "userData.name": user.name } }
+                        }
+                    });
                 }
+            }
+            if (bulkOps.length > 0) {
+                await appointmentModel.bulkWrite(bulkOps);
             }
         } catch (e) {
             console.log("Appointment media sync info:", e.message);
@@ -66,8 +78,11 @@ app.use(compression()) // Gzip/Brotli compress all API responses (~60-80% size r
 app.use(express.json())
 app.use(cors())
 
-// Serve custom book cover images statically for frontend & admin apps
-app.use('/book-covers', express.static(path.join(__dirname, '../frontend/src/assets/book pic')));
+// Serve custom book cover images statically with caching headers
+app.use('/book-covers', express.static(path.join(__dirname, '../frontend/src/assets/book pic'), {
+    maxAge: '7d',
+    immutable: true
+}));
 
 // API ENDPOINTS
 app.use('/api/admin', adminRouter);

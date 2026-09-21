@@ -235,12 +235,22 @@ const appointmentCancel = async (req, res) => {
 // API to get dashboard data for admin panel (including book catalog & order stats)
 const adminDashboard = async (req, res) => {
     try {
-        const doctors = await doctorModel.find({});
-        const users = await userModel.find({});
-        const appointments = await appointmentModel.find({}).lean();
-        const books = await bookModel.find({});
-        const bookOrders = await orderModel.find({}).sort({ date: -1 });
+        // Use countDocuments + limited queries instead of fetching ALL rows from every collection
+        const [
+            doctorCount,
+            patientCount,
+            bookCount,
+            appointments,
+            bookOrders
+        ] = await Promise.all([
+            doctorModel.countDocuments({}),
+            userModel.countDocuments({}),
+            bookModel.countDocuments({}),
+            appointmentModel.find({}).lean(),
+            orderModel.find({}).sort({ date: -1 }).lean()
+        ]);
 
+        // Batch auto-status updates using bulkWrite instead of N sequential order.save() calls
         const computeAutoStatus = (orderDate, currentStatus, isManualStatus = false) => {
             if (isManualStatus) return currentStatus;
             if (currentStatus === 'Cancelled') return 'Cancelled';
@@ -252,15 +262,33 @@ const adminDashboard = async (req, res) => {
             return 'Delivered';
         };
 
-        for (let order of bookOrders) {
+        const bulkOps = [];
+        for (const order of bookOrders) {
             if (order.status !== 'Cancelled' && !order.isManualStatus) {
                 const autoStatus = computeAutoStatus(order.date, order.status, order.isManualStatus);
                 if (order.status !== autoStatus) {
                     order.status = autoStatus;
-                    await order.save();
+                    bulkOps.push({
+                        updateOne: {
+                            filter: { _id: order._id },
+                            update: { $set: { status: autoStatus } }
+                        }
+                    });
                 }
             }
         }
+        if (bulkOps.length > 0) {
+            await orderModel.bulkWrite(bulkOps);
+        }
+
+        // Fetch latest doctor and user images for appointment display
+        const docIds = [...new Set(appointments.map(a => a.docId).filter(Boolean))];
+        const userIds = [...new Set(appointments.map(a => a.userId).filter(Boolean))];
+
+        const [doctors, users] = await Promise.all([
+            doctorModel.find({ _id: { $in: docIds } }).select('image name').lean(),
+            userModel.find({ _id: { $in: userIds } }).select('image name').lean()
+        ]);
 
         const docMap = new Map(doctors.map(d => [d._id.toString(), d]));
         const userMap = new Map(users.map(u => [u._id.toString(), u]));
@@ -298,10 +326,10 @@ const adminDashboard = async (req, res) => {
         };
 
         const dashData = {
-            doctors: doctors.length,
+            doctors: doctorCount,
             appointments: appointments.length,
-            patients: users.length,
-            books: books.length,
+            patients: patientCount,
+            books: bookCount,
             bookOrdersCount: bookOrders.length,
             appointmentStats,
             bookOrderStats,

@@ -38,6 +38,21 @@ const VideoCallPage = lazy(() => import('./components/videocall/VideoCallPage.js
 const PrivacyTerms = lazy(() => import('./pages/PrivacyTerms.jsx'))
 const Blog = lazy(() => import('./pages/Blog.jsx'))
 
+// Prefetch heavy route chunks immediately after initial paint so first-time transitions are instant
+const prefetchRoutes = () => {
+  try {
+    import('./pages/Blog.jsx')
+    import('./pages/Library.jsx')
+  } catch (_) {}
+}
+if (typeof window !== 'undefined') {
+  if ('requestIdleCallback' in window) {
+    window.requestIdleCallback(prefetchRoutes, { timeout: 800 })
+  } else {
+    setTimeout(prefetchRoutes, 200)
+  }
+}
+
 // Minimal loading fallback that matches the site theme
 const PageLoader = () => (
   <div className="flex items-center justify-center min-h-[60vh]">

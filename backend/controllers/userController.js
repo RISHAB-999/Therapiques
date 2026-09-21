@@ -1301,16 +1301,26 @@ const computeAutoStatus = (orderDate, currentStatus, isManualStatus = false) => 
 const getUserOrders = async (req, res) => {
     try {
         const { userId } = req.body;
-        let orders = await orderModel.find({ userId }).sort({ date: -1 });
+        const orders = await orderModel.find({ userId }).sort({ date: -1 }).lean();
         
-        for (let order of orders) {
+        // Batch auto-status updates using bulkWrite instead of N sequential order.save() calls
+        const bulkOps = [];
+        for (const order of orders) {
             if (order.status !== 'Cancelled' && !order.isManualStatus) {
                 const autoStatus = computeAutoStatus(order.date, order.status, order.isManualStatus);
                 if (order.status !== autoStatus) {
                     order.status = autoStatus;
-                    await order.save();
+                    bulkOps.push({
+                        updateOne: {
+                            filter: { _id: order._id },
+                            update: { $set: { status: autoStatus } }
+                        }
+                    });
                 }
             }
+        }
+        if (bulkOps.length > 0) {
+            await orderModel.bulkWrite(bulkOps);
         }
 
         res.json({ success: true, orders });

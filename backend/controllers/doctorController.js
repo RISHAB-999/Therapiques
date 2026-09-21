@@ -13,6 +13,10 @@ const razorpayInstance = new razorpay({
     key_secret: process.env.RAZORPAY_KEY_SECRET || 'test_secret',
 })
 
+// Simple in-memory cache for doctorList — this endpoint is polled every 30s by every connected frontend user
+let doctorListCache = { data: null, timestamp: 0 }
+const DOCTOR_LIST_CACHE_TTL = 30000 // 30 seconds — matches frontend polling interval
+
 // API for doctor Login 
 const loginDoctor = async (req, res) => {
     try {
@@ -221,14 +225,21 @@ const appointmentComplete = async (req, res) => {
 }
 
 // API to get all doctors list for Frontend (with authoritative slots_booked computed from active appointments)
+// Uses a 30-second in-memory cache since this is polled every 30s by every connected user
 const doctorList = async (req, res) => {
     try {
-        const doctors = await doctorModel.find({}).select(['-password', '-email']).lean();
+        const now = Date.now()
+        if (doctorListCache.data && (now - doctorListCache.timestamp) < DOCTOR_LIST_CACHE_TTL) {
+            return res.json(doctorListCache.data)
+        }
 
-        // Authoritative source of truth: Fetch all active (cancelled: false) appointments
-        const activeAppointments = await appointmentModel.find({ cancelled: false })
-            .select('docId slotDate slotTime')
-            .lean();
+        // Parallel fetch: doctors + active appointments (uses { docId: 1, cancelled: 1 } index)
+        const [doctors, activeAppointments] = await Promise.all([
+            doctorModel.find({}).select(['-password', '-email']).lean(),
+            appointmentModel.find({ cancelled: false })
+                .select('docId slotDate slotTime')
+                .lean()
+        ])
 
         const docSlotsMap = {};
         for (const app of activeAppointments) {
@@ -253,7 +264,9 @@ const doctorList = async (req, res) => {
             };
         });
 
-        res.json({ success: true, doctors: updatedDoctors });
+        const response = { success: true, doctors: updatedDoctors }
+        doctorListCache = { data: response, timestamp: now }
+        res.json(response);
 
     } catch (error) {
         console.log(error)
@@ -376,21 +389,11 @@ const doctorDashboard = async (req, res) => {
 
         const appointments = await appointmentModel.find({ docId }).lean()
 
-        let earnings = 0
+        const earnings = appointments.reduce((sum, item) => {
+            return (item.isCompleted && !item.cancelled) ? sum + item.amount : sum
+        }, 0)
 
-        appointments.map((item) => {
-            if (item.isCompleted && !item.cancelled) {
-                earnings += item.amount
-            }
-        })
-
-        let patients = []
-
-        appointments.map((item) => {
-            if (!patients.includes(item.userId)) {
-                patients.push(item.userId)
-            }
-        })
+        const patients = [...new Set(appointments.map(a => a.userId).filter(Boolean))]
 
         // Fetch latest patient profile info for recent appointments table
         const userIds = [...new Set(appointments.map(a => a.userId).filter(Boolean))]

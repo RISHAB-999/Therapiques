@@ -418,41 +418,27 @@ export const PageTransition = ({ children, pathname = '', className = '' }) => {
 
   return (
     <div className={`relative ${className}`}>
-      {/* Dual Curtain Wipe with Hardware-Accelerated 3D Transform */}
-      <AnimatePresence mode="wait">
-        {showCurtain && !prefersReducedMotion && (
-          <div key={`curtains-container-${pathname}`} className="fixed inset-0 z-50 pointer-events-none overflow-hidden">
-            {/* Layer 1: Luxury Cream Accent Curtain */}
-            <motion.div
-              key={`curtain-accent-${pathname}`}
-              initial={{ y: "100%" }}
-              animate={{ y: "-100%" }}
-              exit={{ y: "-100%" }}
-              transition={{ duration: 0.65, ease: [0.76, 0, 0.24, 1] }}
-              className="absolute inset-0 bg-[#F3E8DE] pointer-events-none transform-gpu will-change-transform"
-              style={{ backfaceVisibility: 'hidden', transform: 'translate3d(0,0,0)' }}
-            />
+      {/* Dual Curtain Wipe with Pure Hardware-Accelerated CSS (Compositor Thread) */}
+      {showCurtain && !prefersReducedMotion && (
+        <div key={`curtains-container-${pathname}`} className="fixed inset-0 z-50 pointer-events-none overflow-hidden">
+          {/* Layer 1: Luxury Cream Accent Curtain */}
+          <div
+            className="absolute inset-0 bg-[#F3E8DE] pointer-events-none curtain-accent-anim"
+          />
 
-            {/* Layer 2: Rich Dark Espresso Main Curtain with Therapique Brand Logo */}
-            <motion.div
-              key={`curtain-main-${pathname}`}
-              initial={{ y: "100%" }}
-              animate={{ y: "-100%" }}
-              exit={{ y: "-100%" }}
-              transition={{ duration: 0.75, delay: 0.04, ease: [0.76, 0, 0.24, 1] }}
-              className="absolute inset-0 bg-[#241E1A] pointer-events-none flex items-center justify-center shadow-2xl transform-gpu will-change-transform"
-              style={{ backfaceVisibility: 'hidden', transform: 'translate3d(0,0,0)' }}
-            >
-              <div className="flex flex-col items-center gap-2 select-none">
-                <span className="font-therapique text-3xl sm:text-4xl md:text-5xl font-bold text-[#FAF5EE] tracking-tight">
-                  therapique
-                </span>
-                <div className="w-12 h-0.5 bg-[#8b65e2] rounded-full" />
-              </div>
-            </motion.div>
+          {/* Layer 2: Rich Dark Espresso Main Curtain with Therapique Brand Logo */}
+          <div
+            className="absolute inset-0 bg-[#241E1A] pointer-events-none flex items-center justify-center shadow-2xl curtain-main-anim"
+          >
+            <div className="flex flex-col items-center gap-2 select-none">
+              <span className="font-therapique text-3xl sm:text-4xl md:text-5xl font-bold text-[#FAF5EE] tracking-tight">
+                therapique
+              </span>
+              <div className="w-12 h-0.5 bg-[#8b65e2] rounded-full" />
+            </div>
           </div>
-        )}
-      </AnimatePresence>
+        </div>
+      )}
 
       {/* Page Content */}
       {children}

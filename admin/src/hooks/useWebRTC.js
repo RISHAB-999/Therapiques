@@ -6,7 +6,9 @@ const getIceServers = () => {
   const iceServers = [
     { urls: 'stun:stun.l.google.com:19302' },
     { urls: 'stun:stun1.l.google.com:19302' },
-    { urls: 'stun:stun2.l.google.com:19302' }
+    { urls: 'stun:stun2.l.google.com:19302' },
+    { urls: 'stun:stun3.l.google.com:19302' },
+    { urls: 'stun:stun4.l.google.com:19302' }
   ]
 
   const turnUrl = import.meta.env.VITE_TURN_URL
@@ -21,7 +23,10 @@ const getIceServers = () => {
     })
   }
 
-  return { iceServers }
+  return {
+    iceServers,
+    iceCandidatePoolSize: 10
+  }
 }
 
 // Low-latency Opus audio SDP optimization
@@ -336,6 +341,7 @@ export const useWebRTC = () => {
 
       if (pc.connectionState === 'connected' || pc.iceConnectionState === 'connected' || pc.iceConnectionState === 'completed') {
         console.log('[WEBRTC DEBUG Admin] WebRTC connection established successfully!')
+        applySenderBitrateParams(pc)
         if (onConnected) onConnected()
       }
     }
@@ -344,6 +350,27 @@ export const useWebRTC = () => {
       console.log('[WEBRTC ICE STATE]', {
         role: 'doctor',
         iceConnectionState: pc.iceConnectionState
+      })
+    }
+
+    // Apply video encoding bitrate parameters for consistent high quality
+    const applySenderBitrateParams = (pc) => {
+      const senders = pc.getSenders()
+      senders.forEach(sender => {
+        if (sender.track && sender.track.kind === 'video') {
+          const params = sender.getParameters()
+          if (!params.encodings || params.encodings.length === 0) {
+            params.encodings = [{}]
+          }
+          params.encodings[0].maxBitrate = 2500000       // 2.5 Mbps max — HD quality cap
+          params.encodings[0].scaleResolutionDownBy = 1   // No downscaling
+          if (params.degradationPreference !== undefined) {
+            params.degradationPreference = 'balanced'     // Degrade resolution before framerate
+          }
+          sender.setParameters(params).catch(e => {
+            console.warn('[WEBRTC Admin] Failed to set video bitrate params:', e)
+          })
+        }
       })
     }
 

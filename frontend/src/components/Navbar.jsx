@@ -58,10 +58,10 @@ const Navbar = () => {
         }
 
         if (typeof window !== 'undefined' && 'requestIdleCallback' in window) {
-            const idleId = window.requestIdleCallback(scheduleIdlePrefetch, { timeout: 3000 })
+            const idleId = window.requestIdleCallback(scheduleIdlePrefetch, { timeout: 800 })
             return () => window.cancelIdleCallback(idleId)
         } else {
-            const timeoutId = setTimeout(scheduleIdlePrefetch, 1500)
+            const timeoutId = setTimeout(scheduleIdlePrefetch, 200)
             return () => clearTimeout(timeoutId)
         }
     }, [])

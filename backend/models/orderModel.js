@@ -12,5 +12,8 @@ const orderSchema = new mongoose.Schema({
     isManualStatus: { type: Boolean, default: false }
 });
 
+// Performance index: getUserOrders queries by userId sorted by date descending
+orderSchema.index({ userId: 1, date: -1 })
+
 const orderModel = mongoose.models.order || mongoose.model("order", orderSchema);
 export default orderModel;

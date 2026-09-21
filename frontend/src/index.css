@@ -652,3 +652,38 @@ img {
 .Toastify__close-button:hover {
   opacity: 1 !important;
 }
+
+/* GPU-accelerated page transition curtain wipe animations (compositor thread) */
+@keyframes curtainWipeAccent {
+  0% {
+    transform: translate3d(0, 100%, 0);
+  }
+  100% {
+    transform: translate3d(0, -100%, 0);
+  }
+}
+
+@keyframes curtainWipeMain {
+  0% {
+    transform: translate3d(0, 100%, 0);
+  }
+  100% {
+    transform: translate3d(0, -100%, 0);
+  }
+}
+
+.curtain-accent-anim {
+  animation: curtainWipeAccent 0.65s cubic-bezier(0.76, 0, 0.24, 1) forwards;
+  will-change: transform;
+  transform: translate3d(0, 0, 0);
+  -webkit-backface-visibility: hidden;
+  backface-visibility: hidden;
+}
+
+.curtain-main-anim {
+  animation: curtainWipeMain 0.75s cubic-bezier(0.76, 0, 0.24, 1) 0.04s forwards;
+  will-change: transform;
+  transform: translate3d(0, 0, 0);
+  -webkit-backface-visibility: hidden;
+  backface-visibility: hidden;
+}

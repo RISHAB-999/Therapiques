@@ -19,6 +19,10 @@ const appointmentSchema = new mongoose.Schema({
     reminderSent: { type: Boolean, default: false }
 })
 
+// Performance indexes for common query patterns
+appointmentSchema.index({ userId: 1 })                  // Used by listAppointment, cancelAppointment, all user-facing queries
+appointmentSchema.index({ docId: 1, cancelled: 1 })     // Used by doctorList (slot computation), doctorDashboard, appointmentsDoctor
+
 // Compound Partial Unique Index:
 // Enforces that for any doctor, a specific date and time slot can have ONLY ONE active appointment (cancelled === false).
 // Cancelled appointments (cancelled === true) are excluded by the partialFilterExpression, allowing slots to be freely re-booked.

@@ -1,5 +1,5 @@
 import axios from "axios";
-import { createContext, useState } from "react";
+import { createContext, useState, useMemo, useCallback } from "react";
 import { toast } from "react-toastify";
 
 export const AdminContext = createContext();
@@ -16,7 +16,7 @@ const AdminContextProvider = (props) => {
   const [doctors, setDoctors] = useState([]);
   const [dashData, setDashData] = useState(false)
 
-  const getAllDoctors = async () => {
+  const getAllDoctors = useCallback(async () => {
     try {
       const { data } = await axios.post(backendUrl + '/api/admin/all-doctors', {}, {
         headers: {
@@ -33,9 +33,9 @@ const AdminContextProvider = (props) => {
     } catch (error) {
       toast.error(error.message);
     }
-  };
+  }, [backendUrl, aToken]);
 
-  const changeAvailability = async (docId) => {
+  const changeAvailability = useCallback(async (docId) => {
     try {
       const { data } = await axios.post(backendUrl + '/api/admin/change-availability', { docId }, {
         headers: {
@@ -51,9 +51,9 @@ const AdminContextProvider = (props) => {
     } catch (error) {
       toast.error(error.message);
     }
-  };
+  }, [backendUrl, aToken, getAllDoctors]);
 
-  const updateDoctorCredentials = async (docId, { email, password }) => {
+  const updateDoctorCredentials = useCallback(async (docId, { email, password }) => {
     try {
       const { data } = await axios.post(
         backendUrl + '/api/admin/update-doctor-credentials',
@@ -72,14 +72,14 @@ const AdminContextProvider = (props) => {
       toast.error(error.message);
       return { success: false, error: error.message };
     }
-  };
+  }, [backendUrl, aToken, getAllDoctors]);
 
-  const updateDoctorEmail = async (docId, email) => {
+  const updateDoctorEmail = useCallback(async (docId, email) => {
     return updateDoctorCredentials(docId, { email });
-  };
+  }, [updateDoctorCredentials]);
 
   // Getting all appointment data from Database using API
-  const getAllAppointments = async () => {
+  const getAllAppointments = useCallback(async () => {
 
     try {
 
@@ -97,10 +97,10 @@ const AdminContextProvider = (props) => {
       console.log(error)
     }
 
-  }
+  }, [backendUrl, aToken])
 
   // Function to cancel appointment using API
-  const cancelAppointment = async (appointmentId) => {
+  const cancelAppointment = useCallback(async (appointmentId) => {
 
     try {
 
@@ -118,10 +118,10 @@ const AdminContextProvider = (props) => {
       console.log(error)
     }
 
-  }
+  }, [backendUrl, aToken, getAllAppointments])
 
   // Getting Admin Dashboard data from Database using API
-  const getDashData = async () => {
+  const getDashData = useCallback(async () => {
     try {
 
       const { data } = await axios.get(backendUrl + '/api/admin/dashboard', { headers: { aToken } })
@@ -139,9 +139,9 @@ const AdminContextProvider = (props) => {
       toast.error(error.message)
     }
 
-  }
+  }, [backendUrl, aToken])
 
-  const value = {
+  const value = useMemo(() => ({
     backendUrl,
     aToken, setAToken,
     doctors,
@@ -154,7 +154,7 @@ const AdminContextProvider = (props) => {
     getDashData,
     cancelAppointment,
     dashData
-  };
+  }), [backendUrl, aToken, doctors, appointments, dashData, getAllDoctors, changeAvailability, updateDoctorEmail, updateDoctorCredentials, getAllAppointments, getDashData, cancelAppointment]);
 
   return (
     <AdminContext.Provider value={value}>
