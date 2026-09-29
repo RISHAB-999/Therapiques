@@ -271,10 +271,14 @@ const BookList = () => {
                 className='bg-white border border-slate-200/80 rounded-2xl overflow-hidden shadow-2xs hover:shadow-md transition-all duration-300 flex flex-col justify-between group'
               >
                 {/* Cover Image Container */}
-                <div className='w-full h-56 overflow-hidden relative shadow-2xs'>
+                <div className='w-full h-56 overflow-hidden relative shadow-2xs bg-slate-100'>
                   <img
-                    src={Array.isArray(item.image) ? item.image[0] : item.image}
+                    src={Array.isArray(item.image) ? (item.image[0] || "https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?w=600&auto=format&fit=crop") : (item.image || "https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?w=600&auto=format&fit=crop")}
                     alt={item.title || item.name}
+                    onError={(e) => {
+                      e.currentTarget.onerror = null;
+                      e.currentTarget.src = "https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?w=600&auto=format&fit=crop";
+                    }}
                     className='w-full h-full object-cover object-center group-hover:scale-105 transition-transform duration-300'
                   />
                   <span className={`absolute top-2.5 right-2.5 text-[10px] font-extrabold px-2.5 py-1 rounded-full border shadow-2xs ${
