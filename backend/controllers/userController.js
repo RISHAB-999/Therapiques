@@ -443,7 +443,7 @@ const listAppointment = async (req, res) => {
     try {
 
         const { userId } = req.body
-        const appointments = await appointmentModel.find({ userId }).lean()
+        const appointments = await appointmentModel.find({ userId }).sort({ date: -1 }).lean()
 
         // Fetch latest doctor profiles to ensure doctor profile pictures and details are always up-to-date across all appointments
         const docIds = [...new Set(appointments.map(a => a.docId).filter(Boolean))]

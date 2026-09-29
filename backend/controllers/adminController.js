@@ -111,7 +111,7 @@ const allDoctors = async (req, res) => {
 // API to get all appointments list
 const appointmentsAdmin = async (req, res) => {
     try {
-        const appointments = await appointmentModel.find({}).lean();
+        const appointments = await appointmentModel.find({}).sort({ date: -1 }).lean();
 
         // Fetch latest doctor and user profiles to ensure up-to-date pictures & details
         const docIds = [...new Set(appointments.map(a => a.docId).filter(Boolean))];
@@ -246,7 +246,7 @@ const adminDashboard = async (req, res) => {
             doctorModel.countDocuments({}),
             userModel.countDocuments({}),
             bookModel.countDocuments({}),
-            appointmentModel.find({}).lean(),
+            appointmentModel.find({}).sort({ date: -1 }).lean(),
             orderModel.find({}).sort({ date: -1 }).lean()
         ]);
 
@@ -333,7 +333,7 @@ const adminDashboard = async (req, res) => {
             bookOrdersCount: bookOrders.length,
             appointmentStats,
             bookOrderStats,
-            latestAppointments: updatedAppointments.reverse(),
+            latestAppointments: updatedAppointments,
             latestBookOrders: bookOrders.slice(0, 5)
         };
 

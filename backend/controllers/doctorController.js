@@ -56,7 +56,7 @@ const appointmentsDoctor = async (req, res) => {
     try {
 
         const docId = req.docId || req.body.docId
-        const appointments = await appointmentModel.find({ docId }).lean()
+        const appointments = await appointmentModel.find({ docId }).sort({ date: -1 }).lean()
 
         // Fetch latest patient profile info (image, name, dob, gender, phone) so appointments always show updated profile pics
         const userIds = [...new Set(appointments.map(a => a.userId).filter(Boolean))]
@@ -387,7 +387,7 @@ const doctorDashboard = async (req, res) => {
 
         const docId = req.docId || req.body.docId
 
-        const appointments = await appointmentModel.find({ docId }).lean()
+        const appointments = await appointmentModel.find({ docId }).sort({ date: -1 }).lean()
 
         const earnings = appointments.reduce((sum, item) => {
             return (item.isCompleted && !item.cancelled) ? sum + item.amount : sum
@@ -427,7 +427,7 @@ const doctorDashboard = async (req, res) => {
             appointments: appointments.length,
             patients: patients.length,
             appointmentStats,
-            latestAppointments: updatedAppointments.reverse()
+            latestAppointments: updatedAppointments
         }
 
         res.json({ success: true, dashData })
