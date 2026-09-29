@@ -202,6 +202,10 @@ npm run dev
 
 ## 👥 Authors & Contributions
 
-Developed by **RISHAB-999**
-- GitHub: [@RISHAB-999](https://github.com/RISHAB-999)
+Developed by **RISHAB-999, Ishaan Jain & Tarun**
+
+* GitHub: [@RISHAB-999](https://github.com/RISHAB-999)
+* GitHub: [@ishaanj26](https://github.com/ishaanj26)
+* GitHub: [@tarunpandore](https://github.com/tarunpandore)
+
 - Repository: [Therapiques](https://github.com/RISHAB-999/Therapiques.git)
