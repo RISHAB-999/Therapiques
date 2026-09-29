@@ -201,53 +201,57 @@ const DoctorDashboard = () => {
                             const joinStatus = getAppointmentJoinStatus(item, currentTime)
                             if (joinStatus.canJoin) {
                               return (
-                                <button
-                                  onClick={() => navigate(`/doctor-video-call/${item._id}`)}
-                                  className="flex-1 sm:flex-initial h-9 sm:h-8 px-3 text-xs font-bold text-white bg-purple-600 hover:bg-purple-700 active:scale-95 rounded-xl shadow-2xs transition-all flex items-center justify-center gap-1.5 cursor-pointer"
-                                  title="Join Active Video Session"
-                                >
-                                  <Video className="w-3.5 h-3.5" />
-                                  <span>Join</span>
-                                </button>
+                                <>
+                                  <button
+                                    onClick={() => navigate(`/doctor-video-call/${item._id}`)}
+                                    className="flex-1 sm:flex-initial h-9 sm:h-8 px-3 text-xs font-bold text-white bg-purple-600 hover:bg-purple-700 active:scale-95 rounded-xl shadow-2xs transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+                                    title="Join Active Video Session"
+                                  >
+                                    <Video className="w-3.5 h-3.5" />
+                                    <span>Join</span>
+                                  </button>
+                                  <button
+                                    onClick={() => completeAppointment(item._id)}
+                                    className="w-9 h-9 sm:w-8 sm:h-8 rounded-xl border border-emerald-200/70 bg-emerald-50 text-emerald-600 hover:bg-emerald-100 hover:border-emerald-300 active:scale-90 transition-all flex items-center justify-center shadow-2xs cursor-pointer shrink-0"
+                                    title="Complete Session"
+                                  >
+                                    <CheckCircle2 className="w-4 h-4" />
+                                  </button>
+                                </>
                               )
-                            } else if (joinStatus.status === 'BEFORE_WINDOW') {
+                            } else if (joinStatus.status === 'AFTER_WINDOW') {
                               return (
                                 <button
-                                  disabled
-                                  className="flex-1 sm:flex-initial h-9 sm:h-8 px-2.5 text-[11px] font-bold text-purple-700 bg-purple-50 border border-purple-200/80 rounded-xl shadow-2xs transition-all flex items-center justify-center gap-1 cursor-not-allowed opacity-90"
-                                  title={`Opens at ${joinStatus.formattedJoinTime}`}
+                                  onClick={() => completeAppointment(item._id)}
+                                  className="flex-1 sm:flex-initial h-9 sm:h-8 px-3 text-xs font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-xl shadow-2xs transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+                                  title="Mark this ended consultation as completed"
                                 >
-                                  <Clock className="w-3 h-3 text-purple-600" />
-                                  <span>{joinStatus.formattedJoinTime}</span>
+                                  <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                                  <span>Mark Completed</span>
                                 </button>
                               )
                             } else {
                               return (
-                                <button
-                                  disabled
-                                  className="flex-1 sm:flex-initial h-9 sm:h-8 px-2.5 text-[11px] font-bold text-slate-400 bg-slate-100 border border-slate-200 rounded-xl shadow-2xs transition-all flex items-center justify-center gap-1 cursor-not-allowed"
-                                  title="Appointment Ended"
-                                >
-                                  <Clock className="w-3 h-3 text-slate-400" />
-                                  <span>Ended</span>
-                                </button>
+                                <>
+                                  <button
+                                    disabled
+                                    className="flex-1 sm:flex-initial h-9 sm:h-8 px-2.5 text-[11px] font-bold text-purple-700 bg-purple-50 border border-purple-200/80 rounded-xl shadow-2xs transition-all flex items-center justify-center gap-1 cursor-not-allowed opacity-90"
+                                    title={`Opens at ${joinStatus.formattedJoinTime}`}
+                                  >
+                                    <Clock className="w-3 h-3 text-purple-600" />
+                                    <span>{joinStatus.formattedJoinTime}</span>
+                                  </button>
+                                  <button
+                                    onClick={() => cancelAppointment(item._id)}
+                                    className="w-9 h-9 sm:w-8 sm:h-8 rounded-xl border border-rose-200/70 bg-rose-50 text-rose-600 hover:bg-rose-100 hover:border-rose-300 active:scale-90 transition-all flex items-center justify-center shadow-2xs cursor-pointer shrink-0"
+                                    title="Cancel Consultation"
+                                  >
+                                    <XCircle className="w-4 h-4" />
+                                  </button>
+                                </>
                               )
                             }
                           })()}
-                          <button
-                            onClick={() => cancelAppointment(item._id)}
-                            className="w-9 h-9 sm:w-8 sm:h-8 rounded-xl border border-rose-200/70 bg-rose-50 text-rose-600 hover:bg-rose-100 hover:border-rose-300 active:scale-90 transition-all flex items-center justify-center shadow-2xs cursor-pointer shrink-0"
-                            title="Cancel Consultation"
-                          >
-                            <XCircle className="w-4 h-4" />
-                          </button>
-                          <button
-                            onClick={() => completeAppointment(item._id)}
-                            className="w-9 h-9 sm:w-8 sm:h-8 rounded-xl border border-emerald-200/70 bg-emerald-50 text-emerald-600 hover:bg-emerald-100 hover:border-emerald-300 active:scale-90 transition-all flex items-center justify-center shadow-2xs cursor-pointer shrink-0"
-                            title="Mark as Completed"
-                          >
-                            <CheckCircle2 className="w-4 h-4" />
-                          </button>
                         </div>
                       )}
                     </div>
