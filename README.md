@@ -8,6 +8,8 @@
   <strong>Therapique</strong> is a modern, comprehensive mental health and telehealth ecosystem connecting patients with licensed mental health professionals, featuring real-time WebRTC video consultations, a curated therapeutic book library, a coin rewards system, an interactive AI assistant, and dedicated Doctor & Admin management panels.
 </p>
 
+> 📖 **Deep Dive Architecture Guide**: For an exhaustive, developer-ready breakdown of system design, WebRTC signaling, slot algorithms, database schemas, and API catalogs, consult [ARCHITECTURE.md](./ARCHITECTURE.md).
+
 ---
 
 ## 🌟 Key Platform Modules
