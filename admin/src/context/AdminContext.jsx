@@ -1,6 +1,7 @@
 import axios from "axios";
 import { createContext, useState, useMemo, useCallback } from "react";
 import { toast } from "react-toastify";
+import { useStableState } from '../hooks/useStableState'
 
 export const AdminContext = createContext();
 
@@ -12,9 +13,9 @@ const AdminContextProvider = (props) => {
     : (envBackendUrl || 'http://localhost:4000');
   const [aToken, setAToken] = useState(localStorage.getItem('aToken') || null);
 
-  const [appointments, setAppointments] = useState([])
-  const [doctors, setDoctors] = useState([]);
-  const [dashData, setDashData] = useState(false)
+  const [appointments, setAppointments] = useStableState([])
+  const [doctors, setDoctors] = useStableState([]);
+  const [dashData, setDashData] = useStableState(false)
 
   const getAllDoctors = useCallback(async () => {
     try {

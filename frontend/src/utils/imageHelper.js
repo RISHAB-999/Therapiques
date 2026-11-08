@@ -20,4 +20,23 @@ export const sanitizeImageUrl = (img, backendUrl = '') => {
   return url
 }
 
+/**
+ * Builds a responsive srcSet for Unsplash images so phones download a ~480px file
+ * instead of the full 1200px original. Returns undefined for any other host.
+ * @param {string} url
+ * @param {number[]} widths
+ */
+export const unsplashSrcSet = (url, widths = [480, 800, 1200]) => {
+  if (typeof url !== 'string' || !url.startsWith('https://images.unsplash.com/')) return undefined
+  try {
+    return widths.map((w) => {
+      const u = new URL(url)
+      u.searchParams.set('w', String(w))
+      return `${u.toString()} ${w}w`
+    }).join(', ')
+  } catch {
+    return undefined
+  }
+}
+
 export default sanitizeImageUrl

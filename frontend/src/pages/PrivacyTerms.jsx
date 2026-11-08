@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { Lock, ShieldCheck, User, CircleDollarSign } from 'lucide-react'
 import { FaShieldHalved, FaLock, FaFileContract, FaCircleCheck, FaTriangleExclamation, FaHandshakeAngle, FaScaleBalanced, FaChevronDown, FaVideo } from 'react-icons/fa6'
-import privacyIllustration from '../assets/privacy-security-illustration.png'
+import privacyIllustration from '../assets/privacy-security-illustration.webp'
 import { FadeUp, StaggerContainer, StaggerItem } from '../components/ScrollReveal'
 
 const PrivacyTerms = () => {

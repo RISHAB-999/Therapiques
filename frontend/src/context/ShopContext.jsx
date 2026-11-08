@@ -122,6 +122,7 @@ const ShopContextProvider = ({ children }) => {
 
     // Background polling every 60 seconds — book stock changes infrequently
     const interval = setInterval(() => {
+      if (document.hidden) return
       getBooksData()
       lastFetchTime = Date.now()
     }, 60000)

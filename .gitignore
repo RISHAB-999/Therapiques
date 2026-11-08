@@ -39,3 +39,4 @@ cloudflared.exe
 *.sln
 *.sw?
 
+!**/.env.example

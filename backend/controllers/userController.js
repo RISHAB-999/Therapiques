@@ -1,4 +1,3 @@
-import jwt from "jsonwebtoken";
 import bcrypt from "bcrypt";
 import validator from "validator";
 import userModel from "../models/userModel.js";
@@ -25,6 +24,31 @@ import {
 import { COIN_PACKAGES } from '../constants/coinPackages.js';
 import newsletterModel from "../models/newsletterModel.js";
 import { getAppointmentJoinStatus, normalizeSlotTime, normalizeSlotDate, checkSlotConflict } from "../utils/appointmentTiming.js";
+import { signToken } from "../utils/tokens.js";
+import { clientError, isObjectId, isNonEmptyString, verifyRazorpaySignature, generateOtp, hashOtp } from "../utils/security.js";
+import { creditCoins, debitCoins, creditPurchasedCoinsOnce } from "../utils/coins.js";
+import { priceCartItems, sanitizeAddress } from "../utils/orderPricing.js";
+
+// Fields that must never leave the server or be copied into appointment snapshots
+const PRIVATE_USER_FIELDS = '-password -verifyOtp -verifyOtpExpireAt -verifyOtpAttempts -verifyOtpLastSentAt -tokenVersion';
+const USER_SNAPSHOT_FIELDS = `${PRIVATE_USER_FIELDS} -coinsTransactions -therapiqueCoins`;
+const MAX_OTP_ATTEMPTS = 5;
+const OTP_TTL_MS = 10 * 60 * 1000;
+const OTP_RESEND_COOLDOWN_MS = 60 * 1000;
+const BCRYPT_ROUNDS = 12;
+
+const hashPassword = async (password) => bcrypt.hash(password, await bcrypt.genSalt(BCRYPT_ROUNDS));
+const isValidPassword = (password) => typeof password === 'string' && password.length >= 8 && password.length <= 128;
+const normalizeEmail = (email) => (typeof email === 'string' ? email.toLowerCase().trim() : '');
+
+/** Builds immutable appointment snapshots without private fields. */
+const buildDoctorSnapshot = (docData) => {
+    const snapshot = docData.toObject ? docData.toObject() : { ...docData };
+    delete snapshot.slots_booked;
+    delete snapshot.password;
+    delete snapshot.tokenVersion;
+    return snapshot;
+};
 
 // API to register user
 const registerUser = async (req, res) => {
@@ -33,7 +57,7 @@ const registerUser = async (req, res) => {
         const { name, email, password } = req.body;
 
         // checking for all data to register user
-        if (!name || !email || !password) {
+        if (!isNonEmptyString(name, 100) || typeof email !== 'string' || typeof password !== 'string') {
             return res.json({ success: false, message: 'Missing Details' })
         }
 
@@ -43,7 +67,7 @@ const registerUser = async (req, res) => {
         }
 
         // validating strong password
-        if (password.length < 8) {
+        if (!isValidPassword(password)) {
             return res.json({ success: false, message: "Please enter a strong password" })
         }
 
@@ -57,21 +81,19 @@ const registerUser = async (req, res) => {
         if (exists) {
             // If the account was already created but is not yet email-verified, refresh OTP and allow verification
             if (exists.emailVerified === false) {
-                const otp = crypto.randomInt(100000, 1000000).toString();
-                const hashedOtp = crypto.createHash('sha256').update(otp).digest('hex');
-
-                const salt = await bcrypt.genSalt(10);
-                const hashedPassword = await bcrypt.hash(password, salt);
+                const { otp, hash: hashedOtp } = generateOtp();
 
                 exists.name = name.trim() || exists.name;
-                exists.password = hashedPassword;
+                exists.password = await hashPassword(password);
                 exists.verifyOtp = hashedOtp;
-                exists.verifyOtpExpireAt = Date.now() + 10 * 60 * 1000;
+                exists.verifyOtpExpireAt = Date.now() + OTP_TTL_MS;
                 exists.verifyOtpAttempts = 0;
                 exists.verifyOtpLastSentAt = Date.now();
+                // Revoke any token issued for the previous (unverified) registration
+                exists.tokenVersion = (exists.tokenVersion || 0) + 1;
                 await exists.save();
 
-                const token = jwt.sign({ id: exists._id }, process.env.JWT_SECRET);
+                const token = signToken('user', exists._id, exists.tokenVersion);
 
                 sendSignupOtpEmail({
                     email: exists.email,
@@ -96,12 +118,10 @@ const registerUser = async (req, res) => {
         }
 
         // hashing user password
-        const salt = await bcrypt.genSalt(10); // the more no. round the more time it will take
-        const hashedPassword = await bcrypt.hash(password, salt)
+        const hashedPassword = await hashPassword(password)
 
         // Generate 6-digit numeric OTP and SHA-256 hash
-        const otp = crypto.randomInt(100000, 1000000).toString();
-        const hashedOtp = crypto.createHash('sha256').update(otp).digest('hex');
+        const { otp, hash: hashedOtp } = generateOtp();
 
         const userData = {
             name: name.trim(),
@@ -110,14 +130,14 @@ const registerUser = async (req, res) => {
             profileCompleted: false,
             emailVerified: false,
             verifyOtp: hashedOtp,
-            verifyOtpExpireAt: Date.now() + 10 * 60 * 1000,
+            verifyOtpExpireAt: Date.now() + OTP_TTL_MS,
             verifyOtpAttempts: 0,
             verifyOtpLastSentAt: Date.now()
         }
 
         const newUser = new userModel(userData)
         const user = await newUser.save()
-        const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET)
+        const token = signToken('user', user._id, user.tokenVersion || 0)
 
         // Send OTP verification email to user
         const emailRes = await sendSignupOtpEmail({
@@ -157,7 +177,7 @@ const registerUser = async (req, res) => {
         if (error.code === 11000) {
             return res.json({ success: false, message: "An account with this email already exists. Please log in instead." });
         }
-        res.json({ success: false, message: error.message })
+        res.json({ success: false, message: clientError(error) })
     }
 }
 
@@ -170,7 +190,7 @@ const verifyEmailOtp = async (req, res) => {
             return res.json({ success: false, message: "Authentication required" });
         }
 
-        if (!otp || typeof otp !== 'string' || otp.trim().length !== 6) {
+        if (!otp || typeof otp !== 'string' || !/^\d{6}$/.test(otp.trim())) {
             return res.json({ success: false, message: "Please provide a valid 6-digit verification code" });
         }
 
@@ -208,8 +228,7 @@ const verifyEmailOtp = async (req, res) => {
         }
 
         // Compare SHA-256 hash
-        const cleanOtp = otp.trim();
-        const inputHash = crypto.createHash('sha256').update(cleanOtp).digest('hex');
+        const inputHash = hashOtp(otp);
 
         if (inputHash !== user.verifyOtp) {
             user.verifyOtpAttempts = (user.verifyOtpAttempts || 0) + 1;
@@ -239,7 +258,7 @@ const verifyEmailOtp = async (req, res) => {
         });
     } catch (error) {
         console.log('verifyEmailOtp error:', error);
-        return res.json({ success: false, message: error.message });
+        return res.json({ success: false, message: clientError(error) });
     }
 };
 
@@ -271,11 +290,10 @@ const resendEmailOtp = async (req, res) => {
         }
 
         // Generate new 6-digit OTP and update hash
-        const otp = crypto.randomInt(100000, 1000000).toString();
-        const hashedOtp = crypto.createHash('sha256').update(otp).digest('hex');
+        const { otp, hash: hashedOtp } = generateOtp();
 
         user.verifyOtp = hashedOtp;
-        user.verifyOtpExpireAt = Date.now() + 10 * 60 * 1000;
+        user.verifyOtpExpireAt = Date.now() + OTP_TTL_MS;
         user.verifyOtpAttempts = 0;
         user.verifyOtpLastSentAt = Date.now();
         await user.save();
@@ -293,7 +311,7 @@ const resendEmailOtp = async (req, res) => {
         return res.json({ success: true, message: "A new verification code has been sent to your email." });
     } catch (error) {
         console.log('resendEmailOtp error:', error);
-        return res.json({ success: false, message: error.message });
+        return res.json({ success: false, message: clientError(error) });
     }
 };
 
@@ -302,24 +320,21 @@ const loginUser = async (req, res) => {
 
     try {
         const { email, password } = req.body;
-        if (!email || !password) {
+        if (typeof email !== 'string' || typeof password !== 'string' || !email || !password) {
             return res.json({ success: false, message: "Please provide email and password" })
         }
 
-        const normalizedEmail = email.toLowerCase().trim();
+        const normalizedEmail = normalizeEmail(email);
         const escapedEmail = normalizedEmail.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-        const user = await userModel.findOne({ 
-            email: { $regex: new RegExp(`^${escapedEmail}$`, 'i') } 
+        const user = await userModel.findOne({
+            email: { $regex: new RegExp(`^${escapedEmail}$`, 'i') }
         });
 
-        if (!user) {
-            return res.json({ success: false, message: "User does not exist" })
-        }
-
-        const isMatch = await bcrypt.compare(password, user.password)
+        // Same response for unknown e-mail and wrong password (prevents account enumeration)
+        const isMatch = user ? await bcrypt.compare(password, user.password) : false
 
         if (isMatch) {
-            const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET)
+            const token = signToken('user', user._id, user.tokenVersion || 0)
             const emailVerified = user.emailVerified !== undefined ? user.emailVerified : true
             const profileCompleted = user.profileCompleted !== undefined ? user.profileCompleted : true
             res.json({
@@ -335,11 +350,11 @@ const loginUser = async (req, res) => {
             })
         }
         else {
-            res.json({ success: false, message: "Invalid credentials" })
+            res.json({ success: false, message: "Invalid email or password" })
         }
     } catch (error) {
-        console.log(error)
-        res.json({ success: false, message: error.message })
+        console.error('loginUser error:', error.message)
+        res.json({ success: false, message: clientError(error) })
     }
 }
 
@@ -348,7 +363,7 @@ const getProfile = async (req, res) => {
 
     try {
         const { userId } = req.body
-        const user = await userModel.findById(userId).select('-password').lean()
+        const user = await userModel.findById(userId).select(PRIVATE_USER_FIELDS).lean()
         if (!user) {
             return res.json({ success: false, message: "User not found" })
         }
@@ -365,7 +380,7 @@ const getProfile = async (req, res) => {
 
     } catch (error) {
         console.log(error)
-        res.json({ success: false, message: error.message })
+        res.json({ success: false, message: clientError(error) })
     }
 }
 
@@ -397,18 +412,29 @@ const updateProfile = async (req, res) => {
             }
         }
 
+        const str = (v, max) => String(v ?? '').slice(0, max)
         const updateData = {}
-        if (name !== undefined) updateData.name = name
-        if (phone !== undefined) updateData.phone = phone
-        if (parsedAddress !== undefined) updateData.address = parsedAddress
-        if (dob !== undefined) updateData.dob = dob
-        if (gender !== undefined) updateData.gender = gender
+        if (name !== undefined) {
+            if (!isNonEmptyString(String(name), 100)) return res.json({ success: false, message: "Please enter a valid name" })
+            updateData.name = str(name, 100).trim()
+        }
+        if (phone !== undefined) updateData.phone = str(phone, 20)
+        if (parsedAddress !== undefined) {
+            if (parsedAddress === null || typeof parsedAddress !== 'object' || Array.isArray(parsedAddress)) {
+                return res.json({ success: false, message: "Invalid address" })
+            }
+            updateData.address = Object.fromEntries(Object.entries(parsedAddress).slice(0, 15).map(([k, v]) => [str(k, 40), str(v, 200)]))
+        }
+        if (dob !== undefined) updateData.dob = str(dob, 30)
+        if (gender !== undefined) updateData.gender = str(gender, 30)
         if (profileCompleted !== undefined) {
             updateData.profileCompleted = profileCompleted === true || profileCompleted === 'true'
         }
-        if (wellnessGoal !== undefined) updateData.wellnessGoal = wellnessGoal
-        if (parsedSupportAreas !== undefined) updateData.supportAreas = parsedSupportAreas
-        if (therapyPreference !== undefined) updateData.therapyPreference = therapyPreference
+        if (wellnessGoal !== undefined) updateData.wellnessGoal = str(wellnessGoal, 500)
+        if (parsedSupportAreas !== undefined) {
+            updateData.supportAreas = (Array.isArray(parsedSupportAreas) ? parsedSupportAreas : [parsedSupportAreas]).slice(0, 20).map(a => str(a, 100))
+        }
+        if (therapyPreference !== undefined) updateData.therapyPreference = str(therapyPreference, 200)
 
         if (imageFile) {
             // upload image to cloudinary
@@ -416,7 +442,7 @@ const updateProfile = async (req, res) => {
             updateData.image = imageUpload.secure_url
         }
 
-        const updatedUser = await userModel.findByIdAndUpdate(userId, updateData, { new: true }).select('-password').lean()
+        const updatedUser = await userModel.findByIdAndUpdate(userId, updateData, { new: true }).select(PRIVATE_USER_FIELDS).lean()
         const resolvedProfileCompleted = updatedUser.profileCompleted !== undefined ? updatedUser.profileCompleted : true
 
         // Synchronize updated user profile image & info across all their past & active appointments
@@ -434,7 +460,7 @@ const updateProfile = async (req, res) => {
 
     } catch (error) {
         console.log("Error in updateProfile:", error)
-        res.json({ success: false, message: error.message })
+        res.json({ success: false, message: clientError(error) })
     }
 }
 
@@ -472,7 +498,7 @@ const listAppointment = async (req, res) => {
 
     } catch (error) {
         console.log(error)
-        res.json({ success: false, message: error.message })
+        res.json({ success: false, message: clientError(error) })
     }
 }
 
@@ -481,68 +507,76 @@ const cancelAppointment = async (req, res) => {
     try {
 
         const { userId, appointmentId, refundChoice } = req.body
-        const appointmentData = await appointmentModel.findById(appointmentId)
-
-        if (!appointmentData || appointmentData.cancelled) {
+        if (!isObjectId(appointmentId)) {
             return res.json({ success: false, message: 'Appointment already cancelled or not found' })
         }
 
-        // verify appointment user 
-        if (appointmentData.userId !== userId) {
-            return res.json({ success: false, message: 'Unauthorized action' })
+        // Atomically flip cancelled=false -> true for the owner's appointment.
+        // Only ONE concurrent request can win, so refunds can never be issued twice.
+        const appointmentData = await appointmentModel.findOneAndUpdate(
+            { _id: appointmentId, userId, cancelled: false },
+            { $set: { cancelled: true } },
+            { new: false }
+        )
+
+        if (!appointmentData) {
+            const existing = await appointmentModel.findById(appointmentId).select('userId').lean()
+            if (existing && existing.userId !== userId) {
+                return res.json({ success: false, message: 'Unauthorized action' })
+            }
+            return res.json({ success: false, message: 'Appointment already cancelled or not found' })
         }
 
-        await appointmentModel.findByIdAndUpdate(appointmentId, { cancelled: true })
-
         // Fetch patient info for cancellation email
-        const patientUser = await userModel.findById(userId);
+        const patientUser = await userModel.findById(userId).select('email name');
 
-        // releasing doctor slot 
+        // releasing doctor slot
         const { docId, slotDate, slotTime, payment, amount, paidWithCoins } = appointmentData
         const normalizedSlotDate = normalizeSlotDate(slotDate)
         const normalizedSlotTime = normalizeSlotTime(slotTime)
 
         const doctorData = await doctorModel.findById(docId)
 
-        let slots_booked = doctorData.slots_booked || {}
+        if (doctorData) {
+            let slots_booked = doctorData.slots_booked || {}
+            if (slots_booked[normalizedSlotDate]) {
+                slots_booked[normalizedSlotDate] = slots_booked[normalizedSlotDate].filter(
+                    e => normalizeSlotTime(e) !== normalizedSlotTime
+                )
+                await doctorModel.findByIdAndUpdate(docId, { slots_booked })
+            }
+        }
 
-        if (slots_booked[normalizedSlotDate]) {
-            slots_booked[normalizedSlotDate] = slots_booked[normalizedSlotDate].filter(
-                e => normalizeSlotTime(e) !== normalizedSlotTime
-            )
-            await doctorModel.findByIdAndUpdate(docId, { slots_booked })
+        const sendCancellationEmail = (extra) => sendAppointmentCancellationEmail({
+            appointmentId,
+            patientEmail: patientUser?.email, patientName: patientUser?.name,
+            doctorEmail: doctorData?.email, doctorName: doctorData?.name,
+            slotDate, slotTime,
+            cancelledBy: 'user',
+            ...extra
+        }).catch(e => console.log('Email error:', e.message));
+
+        const refundAsTokens = async () => {
+            const user = await creditCoins(userId, amount, {
+                description: `Refund for Cancelled Appointment (Dr. ${doctorData?.name || 'Doctor'})`,
+                appointmentId: String(appointmentId)
+            })
+            await appointmentModel.findByIdAndUpdate(appointmentId, { refundStatus: 'refunded_tokens' })
+            return user
         }
 
         // Handle Refunds if payment was completed
-        if (payment && amount) {
+        if (payment && amount > 0) {
             if (paidWithCoins || refundChoice === 'tokens') {
                 // Refund as Tokens directly to user wallet
-                const user = await userModel.findById(userId)
-                if (user) {
-                    user.therapiqueCoins = (user.therapiqueCoins || 0) + amount
-                    user.coinsTransactions.push({
-                        type: 'earn',
-                        amount: amount,
-                        description: `Refund for Cancelled Appointment (Dr. ${doctorData?.name || 'Doctor'})`,
-                        date: new Date()
-                    })
-                    await user.save()
-                    await appointmentModel.findByIdAndUpdate(appointmentId, { cancelled: true, refundStatus: 'refunded_tokens' })
-                    sendAppointmentCancellationEmail({
-                        appointmentId,
-                        patientEmail: patientUser?.email, patientName: patientUser?.name,
-                        doctorEmail: doctorData?.email, doctorName: doctorData?.name, 
-                        slotDate, slotTime,
-                        cancelledBy: 'user',
-                        refundMessage: `${amount} Therapique Tokens refunded to your wallet.`
-                    }).catch(e => console.log('Email error:', e.message));
-                    return res.json({ 
-                        success: true, 
-                        message: `Appointment Cancelled. ${amount} Therapique Tokens refunded to your wallet!`,
-                        therapiqueCoins: user.therapiqueCoins,
-                        refundedCoins: amount
-                    })
-                }
+                const user = await refundAsTokens()
+                sendCancellationEmail({ refundMessage: `${amount} Therapique Tokens refunded to your wallet.` })
+                return res.json({
+                    success: true,
+                    message: `Appointment Cancelled. ${amount} Therapique Tokens refunded to your wallet!`,
+                    therapiqueCoins: user?.therapiqueCoins || 0,
+                    refundedCoins: amount
+                })
             } else if (refundChoice === 'bank') {
                 // User chose direct Bank / UPI Refund via Razorpay
                 try {
@@ -552,18 +586,11 @@ const cancelAppointment = async (req, res) => {
                             speed: "optimum",
                             notes: { reason: "Appointment cancelled by user" }
                         })
-                        await appointmentModel.findByIdAndUpdate(appointmentId, { cancelled: true, refundStatus: 'refunded_bank' })
-                        sendAppointmentCancellationEmail({
-                            appointmentId,
-                            patientEmail: patientUser?.email, patientName: patientUser?.name,
-                            doctorEmail: doctorData?.email, doctorName: doctorData?.name, 
-                            slotDate, slotTime,
-                            cancelledBy: 'user',
-                            refundMessage: `₹${amount} refund initiated to your bank/UPI via Razorpay.`
-                        }).catch(e => console.log('Email error:', e.message));
+                        await appointmentModel.findByIdAndUpdate(appointmentId, { refundStatus: 'refunded_bank' })
+                        sendCancellationEmail({ refundMessage: `₹${amount} refund initiated to your bank/UPI via Razorpay.` })
                         const user = await userModel.findById(userId).select('therapiqueCoins')
-                        return res.json({ 
-                            success: true, 
+                        return res.json({
+                            success: true,
                             message: `Appointment Cancelled. ₹${amount} refund initiated directly to your bank / UPI account via Razorpay!`,
                             therapiqueCoins: user?.therapiqueCoins || 0
                         })
@@ -573,70 +600,39 @@ const cancelAppointment = async (req, res) => {
                 }
 
                 // Fallback: If Razorpay API key is in test mode or no paymentId exists, refund as 1:1 Tokens
-                const user = await userModel.findById(userId)
-                if (user) {
-                    user.therapiqueCoins = (user.therapiqueCoins || 0) + amount
-                    user.coinsTransactions.push({
-                        type: 'earn',
-                        amount: amount,
-                        description: `Refund for Cancelled Appointment (Dr. ${doctorData?.name || 'Doctor'})`,
-                        date: new Date()
-                    })
-                    await user.save()
-                    await appointmentModel.findByIdAndUpdate(appointmentId, { cancelled: true, refundStatus: 'refunded_tokens' })
-                    sendAppointmentCancellationEmail({
-                        appointmentId,
-                        patientEmail: patientUser?.email, patientName: patientUser?.name,
-                        doctorEmail: doctorData?.email, doctorName: doctorData?.name, 
-                        slotDate, slotTime,
-                        cancelledBy: 'user',
-                        refundMessage: `₹${amount} credited as ${amount} Tokens to your wallet.`
-                    }).catch(e => console.log('Email error:', e.message));
-                    return res.json({ 
-                        success: true, 
-                        message: `Appointment Cancelled. ₹${amount} credited as ${amount} Tokens to your wallet!`,
-                        therapiqueCoins: user.therapiqueCoins,
-                        refundedCoins: amount
-                    })
-                }
+                const user = await refundAsTokens()
+                sendCancellationEmail({ refundMessage: `₹${amount} credited as ${amount} Tokens to your wallet.` })
+                return res.json({
+                    success: true,
+                    message: `Appointment Cancelled. ₹${amount} credited as ${amount} Tokens to your wallet!`,
+                    therapiqueCoins: user?.therapiqueCoins || 0,
+                    refundedCoins: amount
+                })
             } else {
                 // User cancelled without specifying choice -> mark pending_choice
-                await appointmentModel.findByIdAndUpdate(appointmentId, { cancelled: true, refundStatus: 'pending_choice' });
-                sendAppointmentCancellationEmail({
-                    appointmentId,
-                    patientEmail: patientUser?.email, patientName: patientUser?.name,
-                    doctorEmail: doctorData?.email, doctorName: doctorData?.name, 
-                    slotDate: appointmentData.slotDate, slotTime: appointmentData.slotTime,
-                    cancelledBy: 'user',
-                    needsRefundChoice: true,
-                    amount
-                }).catch(e => console.log('Email error:', e.message));
+                await appointmentModel.findByIdAndUpdate(appointmentId, { refundStatus: 'pending_choice' });
+                sendCancellationEmail({ needsRefundChoice: true, amount });
                 const currentUser = await userModel.findById(userId).select('therapiqueCoins')
-                return res.json({ 
-                    success: true, 
-                    message: 'Appointment Cancelled. Please choose your refund method on the website.', 
-                    therapiqueCoins: currentUser?.therapiqueCoins || 0 
+                return res.json({
+                    success: true,
+                    message: 'Appointment Cancelled. Please choose your refund method on the website.',
+                    therapiqueCoins: currentUser?.therapiqueCoins || 0
                 });
             }
         }
 
         // No-payment cancellation email
-        await appointmentModel.findByIdAndUpdate(appointmentId, { cancelled: true, refundStatus: 'none' })
-        sendAppointmentCancellationEmail({
-            appointmentId,
-            patientEmail: patientUser?.email, patientName: patientUser?.name,
-            doctorEmail: doctorData?.email, doctorName: doctorData?.name, 
-            slotDate: appointmentData.slotDate, slotTime: appointmentData.slotTime,
-            cancelledBy: 'user'
-        }).catch(e => console.log('Email error:', e.message));
+        await appointmentModel.findByIdAndUpdate(appointmentId, { refundStatus: 'none' })
+        sendCancellationEmail({})
         const currentUser = await userModel.findById(userId).select('therapiqueCoins')
         res.json({ success: true, message: 'Appointment Cancelled', therapiqueCoins: currentUser?.therapiqueCoins || 0 })
 
     } catch (error) {
-        console.log(error)
-        res.json({ success: false, message: error.message })
+        console.error('cancelAppointment error:', error.message)
+        res.json({ success: false, message: clientError(error) })
     }
 }
+
 
 
 
@@ -649,18 +645,24 @@ const razorpayInstance = new razorpay({
 const paymentRazorpay = async (req, res) => {
     try {
 
-        const { appointmentId } = req.body
+        const { userId, appointmentId } = req.body
+        if (!isObjectId(appointmentId)) {
+            return res.json({ success: false, message: 'Appointment Cancelled or not found' })
+        }
         const appointmentData = await appointmentModel.findById(appointmentId)
 
-        if (!appointmentData || appointmentData.cancelled) {
+        if (!appointmentData || appointmentData.cancelled || appointmentData.userId !== userId) {
             return res.json({ success: false, message: 'Appointment Cancelled or not found' })
+        }
+        if (appointmentData.payment) {
+            return res.json({ success: false, message: 'This appointment is already paid' })
         }
 
         // creating options for razorpay payment
         const options = {
-            amount: appointmentData.amount * 100,
-            currency: process.env.CURRENCY,
-            receipt: appointmentId,
+            amount: Math.round(appointmentData.amount * 100),
+            currency: process.env.CURRENCY || 'INR',
+            receipt: String(appointmentId),
         }
 
         // creation of an order
@@ -669,54 +671,70 @@ const paymentRazorpay = async (req, res) => {
         res.json({ success: true, order })
 
     } catch (error) {
-        console.log(error)
-        res.json({ success: false, message: error.message })
+        console.error('paymentRazorpay error:', error.message)
+        res.json({ success: false, message: clientError(error) })
     }
 }
+
 
 
 //Api to make verify payment of appointment using Razorpay
 const verifyRazorpay = async (req, res) => {
     try {
-        const { razorpay_order_id, razorpay_payment_id } = req.body
+        const { userId, razorpay_order_id, razorpay_payment_id, razorpay_signature } = req.body
+
+        // 1. The checkout response must be signed by Razorpay with our secret
+        if (!verifyRazorpaySignature(razorpay_order_id, razorpay_payment_id, razorpay_signature)) {
+            return res.json({ success: false, message: 'Payment Failed' })
+        }
+
         const orderInfo = await razorpayInstance.orders.fetch(razorpay_order_id)
+        if (orderInfo.status !== 'paid' || !isObjectId(String(orderInfo.receipt))) {
+            return res.json({ success: false, message: 'Payment Failed' })
+        }
 
-        if (orderInfo.status === 'paid') {
-            await appointmentModel.findByIdAndUpdate(orderInfo.receipt, { 
-                payment: true,
-                paymentId: razorpay_payment_id || orderInfo.id || ""
-            })
+        // 2. The paid order must belong to this user's appointment and match its price
+        const appointment = await appointmentModel.findById(orderInfo.receipt)
+        if (!appointment || appointment.userId !== userId) {
+            return res.json({ success: false, message: 'Payment Failed' })
+        }
+        if (Number(orderInfo.amount) !== Math.round(appointment.amount * 100)) {
+            return res.json({ success: false, message: 'Payment amount mismatch' })
+        }
 
-            // Send booking confirmation emails (non-blocking)
-            const appointment = await appointmentModel.findById(orderInfo.receipt);
-            if (appointment) {
-                const patient = await userModel.findById(appointment.userId);
-                const doctor = await doctorModel.findById(appointment.docId);
-                if (patient && doctor) {
-                    sendAppointmentBookingEmail({
-                        appointmentId: appointment._id,
-                        patientEmail: patient.email, patientName: patient.name,
-                        doctorName: doctor.name, doctorSpeciality: doctor.speciality,
-                        slotDate: appointment.slotDate, slotTime: appointment.slotTime,
-                        amount: appointment.amount, paymentMethod: 'Razorpay'
-                    }).catch(e => console.log('Email error:', e.message));
-                    sendDoctorNewAppointmentAlert({
-                        appointmentId: appointment._id,
-                        doctorEmail: doctor.email, doctorName: doctor.name,
-                        patientName: patient.name,
-                        slotDate: appointment.slotDate, slotTime: appointment.slotTime
-                    }).catch(e => console.log('Email error:', e.message));
-                }
+        // 3. Idempotent: only the first verification marks it paid and sends e-mails
+        const updated = await appointmentModel.findOneAndUpdate(
+            { _id: appointment._id, payment: false },
+            { $set: { payment: true, paymentId: razorpay_payment_id } },
+            { new: true }
+        )
+
+        if (updated) {
+            const [patient, doctor] = await Promise.all([
+                userModel.findById(appointment.userId).select('email name'),
+                doctorModel.findById(appointment.docId).select('email name speciality')
+            ]);
+            if (patient && doctor) {
+                sendAppointmentBookingEmail({
+                    appointmentId: appointment._id,
+                    patientEmail: patient.email, patientName: patient.name,
+                    doctorName: doctor.name, doctorSpeciality: doctor.speciality,
+                    slotDate: appointment.slotDate, slotTime: appointment.slotTime,
+                    amount: appointment.amount, paymentMethod: 'Razorpay'
+                }).catch(e => console.log('Email error:', e.message));
+                sendDoctorNewAppointmentAlert({
+                    appointmentId: appointment._id,
+                    doctorEmail: doctor.email, doctorName: doctor.name,
+                    patientName: patient.name,
+                    slotDate: appointment.slotDate, slotTime: appointment.slotTime
+                }).catch(e => console.log('Email error:', e.message));
             }
+        }
 
-            res.json({ success: true, message: "Payment Successful" })
-        }
-        else {
-            res.json({ success: false, message: 'Payment Failed' })
-        }
+        res.json({ success: true, message: "Payment Successful" })
     } catch (error) {
-        console.log(error)
-        res.json({ success: false, message: error.message })
+        console.error('verifyRazorpay error:', error.message)
+        res.json({ success: false, message: clientError(error) })
     }
 }
 
@@ -725,7 +743,7 @@ const bookAppointmentWithPayment = async (req, res) => {
     try {
         const { userId, docId, slotDate, slotTime } = req.body
 
-        if (!userId || !docId || !slotDate || !slotTime) {
+        if (!userId || !isObjectId(docId) || !isNonEmptyString(slotDate, 20) || !isNonEmptyString(slotTime, 20)) {
             return res.status(400).json({ success: false, message: 'Missing required booking details' })
         }
 
@@ -733,7 +751,7 @@ const bookAppointmentWithPayment = async (req, res) => {
         const normalizedSlotTime = normalizeSlotTime(slotTime)
 
         const docData = await doctorModel.findById(docId).select("-password")
-        if (!docData || !docData.available) {
+        if (!docData || !docData.available || !(docData.fees > 0)) {
             return res.json({ success: false, message: 'Doctor Not Available' })
         }
 
@@ -772,14 +790,16 @@ const bookAppointmentWithPayment = async (req, res) => {
             slots_booked[normalizedSlotDate] = [normalizedSlotTime]
         }
 
-        const userData = await userModel.findById(userId).select("-password")
-        delete docData.slots_booked
+        const userData = await userModel.findById(userId).select(USER_SNAPSHOT_FIELDS).lean()
+        if (!userData) {
+            return res.json({ success: false, message: 'User not found' })
+        }
 
         const appointmentData = {
             userId,
             docId,
             userData,
-            docData,
+            docData: buildDoctorSnapshot(docData),
             amount: docData.fees,
             duration: 60,
             slotTime: normalizedSlotTime,
@@ -824,7 +844,7 @@ const bookAppointmentWithPayment = async (req, res) => {
                 message: 'This appointment slot has already been booked.' 
             })
         }
-        res.json({ success: false, message: error.message })
+        res.json({ success: false, message: clientError(error) })
     }
 }
 
@@ -832,9 +852,10 @@ const bookAppointmentWithPayment = async (req, res) => {
 const contactForm = async (req, res) => {
     try {
         const { firstName, lastName, email, phone, message, userId } = req.body;
-        
-        // Check if all required fields are provided
-        if (!firstName || !lastName || !email || !phone || !message) {
+
+        // Check if all required fields are provided (and are plain strings of sane length)
+        if (!isNonEmptyString(firstName, 100) || !isNonEmptyString(lastName, 100) || typeof email !== 'string' ||
+            !isNonEmptyString(phone, 20) || !isNonEmptyString(message, 5000)) {
             return res.json({ success: false, message: 'All fields are required' });
         }
 
@@ -842,37 +863,37 @@ const contactForm = async (req, res) => {
         if (!validator.isEmail(email)) {
             return res.json({ success: false, message: 'Please enter a valid email' });
         }
-        
+
         // Validate phone number (basic validation)
-        if (phone.length < 10) {
+        if (phone.length < 10 || !/^[0-9+()\-\s]+$/.test(phone)) {
             return res.json({ success: false, message: 'Please enter a valid phone number' });
         }
 
         // Create new contact entry in database
         const contactData = new contactModel({
             userId,
-            firstName,
-            lastName,
-            email,
-            phone,
-            message
+            firstName: firstName.trim(),
+            lastName: lastName.trim(),
+            email: email.trim(),
+            phone: phone.trim(),
+            message: message.trim()
         });
 
         const savedContact = await contactData.save();
 
-        // Send email notifications (admin alert + user auto-reply)
+        // Send email notifications (admin alert + user auto-reply). Content is HTML-escaped in emailService.
         sendContactFormEmails({ firstName, lastName, email, phone, message })
             .catch(e => console.log('Email error:', e.message));
 
-        res.json({ 
-            success: true, 
+        res.json({
+            success: true,
             message: 'Thank you for contacting us! We will get back to you soon.',
             contactId: savedContact._id
         });
 
     } catch (error) {
-        console.log(error);
-        res.json({ success: false, message: error.message });
+        console.error('contactForm error:', error.message);
+        res.json({ success: false, message: clientError(error) });
     }
 }
 
@@ -892,7 +913,7 @@ const purchaseCoins = async (req, res) => {
         const receiptId = `coins_${Date.now().toString().slice(-8)}`;
         const options = {
             amount: packageData.price * 100, // amount in paise
-            currency: process.env.CURRENCY,
+            currency: process.env.CURRENCY || 'INR',
             receipt: receiptId,
             notes: {
                 userId: userId,
@@ -914,58 +935,55 @@ const purchaseCoins = async (req, res) => {
 
     } catch (error) {
         console.log(error);
-        res.json({ success: false, message: error.message });
+        res.json({ success: false, message: clientError(error) });
     }
 };
 
 // API to verify coin purchase payment
 const verifyCoinsPayment = async (req, res) => {
     try {
-        const { razorpay_order_id, razorpay_payment_id, razorpay_signature } = req.body;
-        
-        // Verify the payment signature
-        const body = razorpay_order_id + "|" + razorpay_payment_id;
-        const expectedSignature = crypto.createHmac('sha256', process.env.RAZORPAY_KEY_SECRET)
-            .update(body.toString())
-            .digest('hex');
+        const { userId, razorpay_order_id, razorpay_payment_id, razorpay_signature } = req.body;
 
-        if (expectedSignature === razorpay_signature) {
-            // Payment is verified, get order details
-            const orderInfo = await razorpayInstance.orders.fetch(razorpay_order_id);
-            
-            if (orderInfo.status === 'paid') {
-                const { userId, coinPackage, totalCoins } = orderInfo.notes;
-                
-                // Update user's coin balance
-                const user = await userModel.findById(userId);
-                user.therapiqueCoins += parseInt(totalCoins);
-                
-                // Add transaction record
-                user.coinsTransactions.push({
-                    type: 'purchase',
-                    amount: parseInt(totalCoins),
-                    description: `Purchased ${coinPackage} package`,
-                    paymentId: razorpay_payment_id,
-                    orderId: razorpay_order_id
-                });
-
-                await user.save();
-
-                res.json({ 
-                    success: true, 
-                    message: `Successfully purchased ${totalCoins} Therapique coins!`,
-                    newBalance: user.therapiqueCoins
-                });
-            } else {
-                res.json({ success: false, message: 'Payment not completed' });
-            }
-        } else {
-            res.json({ success: false, message: 'Invalid payment signature' });
+        // Verify the payment signature (constant-time)
+        if (!verifyRazorpaySignature(razorpay_order_id, razorpay_payment_id, razorpay_signature)) {
+            return res.json({ success: false, message: 'Invalid payment signature' });
         }
 
+        // Payment is verified, get order details from Razorpay (server-side source of truth)
+        const orderInfo = await razorpayInstance.orders.fetch(razorpay_order_id);
+        if (orderInfo.status !== 'paid') {
+            return res.json({ success: false, message: 'Payment not completed' });
+        }
+
+        const { userId: orderUserId, coinPackage } = orderInfo.notes || {};
+        const packageData = COIN_PACKAGES[coinPackage];
+
+        // The order must have been created by this user, for a real package, at the real price
+        if (String(orderUserId) !== String(userId) || !packageData || Number(orderInfo.amount) !== packageData.price * 100) {
+            return res.json({ success: false, message: 'Invalid payment for this account' });
+        }
+
+        const totalCoins = packageData.coins + packageData.bonus;
+
+        // Idempotent credit: replaying the same order can never add coins twice
+        const { user, alreadyCredited } = await creditPurchasedCoinsOnce(userId, totalCoins, razorpay_order_id, {
+            description: `Purchased ${coinPackage} package`,
+            paymentId: razorpay_payment_id
+        });
+
+        if (!user) {
+            return res.json({ success: false, message: 'User not found' });
+        }
+
+        res.json({
+            success: true,
+            message: alreadyCredited ? 'This payment has already been credited to your wallet.' : `Successfully purchased ${totalCoins} Therapique coins!`,
+            newBalance: user.therapiqueCoins
+        });
+
     } catch (error) {
-        console.log(error);
-        res.json({ success: false, message: error.message });
+        console.error('verifyCoinsPayment error:', error.message);
+        res.json({ success: false, message: clientError(error) });
     }
 };
 
@@ -974,7 +992,7 @@ const bookAppointmentWithCoins = async (req, res) => {
     try {
         const { userId, docId, slotDate, slotTime } = req.body;
 
-        if (!userId || !docId || !slotDate || !slotTime) {
+        if (!userId || !isObjectId(docId) || !isNonEmptyString(slotDate, 20) || !isNonEmptyString(slotTime, 20)) {
             return res.status(400).json({ success: false, message: 'Missing required booking details' });
         }
 
@@ -982,7 +1000,7 @@ const bookAppointmentWithCoins = async (req, res) => {
         const normalizedSlotTime = normalizeSlotTime(slotTime);
 
         const docData = await doctorModel.findById(docId).select("-password");
-        if (!docData || !docData.available) {
+        if (!docData || !docData.available || !(docData.fees > 0)) {
             return res.json({ success: false, message: 'Doctor Not Available' });
         }
 
@@ -993,25 +1011,28 @@ const bookAppointmentWithCoins = async (req, res) => {
             cancelled: false
         });
 
-        const hasConflict = activeAppointments.some(app => 
+        const hasConflict = activeAppointments.some(app =>
             checkSlotConflict(app.slotTime, normalizedSlotTime, 60, 30)
         );
 
         if (hasConflict) {
-            return res.status(409).json({ 
-                success: false, 
-                message: 'This appointment slot or buffer time has already been booked.' 
+            return res.status(409).json({
+                success: false,
+                message: 'This appointment slot or buffer time has already been booked.'
             });
         }
 
-        const user = await userModel.findById(userId);
+        const userData = await userModel.findById(userId).select(`${PRIVATE_USER_FIELDS} -coinsTransactions`).lean();
+        if (!userData) {
+            return res.json({ success: false, message: 'User not found' });
+        }
         const appointmentCost = docData.fees; // Cost in coins equals the fee amount
 
-        // Check if user has enough coins
-        if (user.therapiqueCoins < appointmentCost) {
-            return res.json({ 
-                success: false, 
-                message: `Insufficient coins. You need ${appointmentCost} coins but have only ${user.therapiqueCoins}` 
+        // Check if user has enough coins (re-checked atomically when deducting below)
+        if ((userData.therapiqueCoins || 0) < appointmentCost) {
+            return res.json({
+                success: false,
+                message: `Insufficient coins. You need ${appointmentCost} coins but have only ${userData.therapiqueCoins || 0}`
             });
         }
 
@@ -1020,9 +1041,9 @@ const bookAppointmentWithCoins = async (req, res) => {
         // 2. Check for slot availability in doctor record
         const bookedListForDate = (slots_booked[normalizedSlotDate] || []).map(s => normalizeSlotTime(s));
         if (bookedListForDate.includes(normalizedSlotTime)) {
-            return res.status(409).json({ 
-                success: false, 
-                message: 'This appointment slot has already been booked.' 
+            return res.status(409).json({
+                success: false,
+                message: 'This appointment slot has already been booked.'
             });
         }
 
@@ -1032,14 +1053,13 @@ const bookAppointmentWithCoins = async (req, res) => {
             slots_booked[normalizedSlotDate] = [normalizedSlotTime];
         }
 
-        const userData = await userModel.findById(userId).select("-password");
-        delete docData.slots_booked;
+        const { therapiqueCoins: _balance, ...userSnapshot } = userData;
 
         const appointmentData = {
             userId,
             docId,
-            userData,
-            docData,
+            userData: userSnapshot,
+            docData: buildDoctorSnapshot(docData),
             amount: docData.fees,
             duration: 60,
             slotTime: normalizedSlotTime,
@@ -1056,26 +1076,23 @@ const bookAppointmentWithCoins = async (req, res) => {
             await newAppointment.save();
         } catch (saveErr) {
             if (saveErr.code === 11000 || saveErr.message?.includes('E11000')) {
-                return res.status(409).json({ 
-                    success: false, 
-                    message: 'This appointment slot has already been booked.' 
+                return res.status(409).json({
+                    success: false,
+                    message: 'This appointment slot has already been booked.'
                 });
             }
             throw saveErr;
         }
 
-        // Deduct coins from user account
-        user.therapiqueCoins -= appointmentCost;
-        
-        // Add transaction record
-        user.coinsTransactions.push({
-            type: 'spend',
-            amount: appointmentCost,
+        // Deduct coins atomically; roll the booking back if a concurrent request spent them first
+        const updatedUser = await debitCoins(userId, appointmentCost, {
             description: `Appointment with ${docData.name}`,
-            appointmentId: newAppointment._id
+            appointmentId: String(newAppointment._id)
         });
-
-        await user.save();
+        if (!updatedUser) {
+            await appointmentModel.deleteOne({ _id: newAppointment._id });
+            return res.json({ success: false, message: 'Insufficient coins to complete this booking.' });
+        }
 
         // Save new slots data in docData
         await doctorModel.findByIdAndUpdate(docId, { slots_booked });
@@ -1093,52 +1110,62 @@ const bookAppointmentWithCoins = async (req, res) => {
             patientName: userData.name, slotDate, slotTime
         }).catch(e => console.log('Email error:', e.message));
 
-        res.json({ 
-            success: true, 
+        res.json({
+            success: true,
             message: 'Appointment Booked with Therapique Coins!',
-            remainingCoins: user.therapiqueCoins
+            remainingCoins: updatedUser.therapiqueCoins
         });
 
     } catch (error) {
-        console.log(error);
+        console.error('bookAppointmentWithCoins error:', error.message);
         if (error.code === 11000 || error.message?.includes('E11000')) {
-            return res.status(409).json({ 
-                success: false, 
-                message: 'This appointment slot has already been booked.' 
+            return res.status(409).json({
+                success: false,
+                message: 'This appointment slot has already been booked.'
             });
         }
-        res.json({ success: false, message: error.message });
+        res.json({ success: false, message: clientError(error) });
     }
 };
 
 // API to create book order with Razorpay
+/** Validates a cart and address, returning server-priced order data or an error message. */
+const prepareBookOrder = async (items, address) => {
+    const cleanAddress = sanitizeAddress(address);
+    if (!cleanAddress) return { error: 'Invalid order details' };
+    try {
+        const priced = await priceCartItems(items);
+        return { ...priced, address: cleanAddress };
+    } catch (err) {
+        if (err.expose) return { error: err.message };
+        throw err;
+    }
+};
+
 const createBookOrderRazorpay = async (req, res) => {
     try {
-        const { userId, items, amount, address } = req.body;
-        if (!items || items.length === 0 || !amount || !address) {
-            return res.json({ success: false, message: 'Invalid order details' });
+        const { userId, items, address } = req.body;
+        const order = await prepareBookOrder(items, address);
+        if (order.error) {
+            return res.json({ success: false, message: order.error });
         }
 
-        const orderData = {
+        const newOrder = new orderModel({
             userId,
-            items,
-            amount,
-            address,
+            items: order.items,
+            amount: order.amount,
+            address: order.address,
             paymentMethod: "RazorPay",
             payment: false,
             date: Date.now()
-        };
-
-        const newOrder = new orderModel(orderData);
+        });
         await newOrder.save();
 
-        const options = {
-            amount: Math.round(amount * 100), // amount in paise
+        const razorpayOrder = await razorpayInstance.orders.create({
+            amount: Math.round(order.amount * 100), // amount in paise, computed server-side
             currency: process.env.CURRENCY || 'INR',
             receipt: newOrder._id.toString(),
-        };
-
-        const razorpayOrder = await razorpayInstance.orders.create(options);
+        });
 
         res.json({
             success: true,
@@ -1147,142 +1174,142 @@ const createBookOrderRazorpay = async (req, res) => {
         });
 
     } catch (error) {
-        console.log(error);
-        res.json({ success: false, message: error.message });
+        console.error('createBookOrderRazorpay error:', error.message);
+        res.json({ success: false, message: clientError(error) });
     }
 };
 
 // API to verify book order Razorpay payment
 const verifyBookOrderRazorpay = async (req, res) => {
     try {
-        const { razorpay_order_id, razorpay_payment_id, razorpay_signature, orderId } = req.body;
+        const { userId, razorpay_order_id, razorpay_payment_id, razorpay_signature, orderId } = req.body;
 
-        const body = razorpay_order_id + "|" + razorpay_payment_id;
-        const expectedSignature = crypto.createHmac('sha256', process.env.RAZORPAY_KEY_SECRET)
-            .update(body.toString())
-            .digest('hex');
-
-        if (expectedSignature === razorpay_signature) {
-            await orderModel.findByIdAndUpdate(orderId, { payment: true, status: 'Paid' });
-
-            // Send order invoice email (non-blocking)
-            const order = await orderModel.findById(orderId);
-            if (order) {
-                const customer = await userModel.findById(order.userId);
-                sendBookOrderPlacedEmail({
-                    userEmail: customer?.email, userName: customer?.name,
-                    orderId: order._id, items: order.items,
-                    amount: order.amount, paymentMethod: 'Razorpay', address: order.address
-                }).catch(e => console.log('Email error:', e.message));
-            }
-
-            res.json({ success: true, message: "Payment Successful & Order Placed!" });
-        } else {
-            res.json({ success: false, message: 'Invalid Signature. Payment Failed' });
+        if (!isObjectId(orderId) || !verifyRazorpaySignature(razorpay_order_id, razorpay_payment_id, razorpay_signature)) {
+            return res.json({ success: false, message: 'Invalid Signature. Payment Failed' });
         }
+
+        // The signed Razorpay order must be the one created for THIS order, owned by THIS user, for the right amount
+        const [orderInfo, order] = await Promise.all([
+            razorpayInstance.orders.fetch(razorpay_order_id),
+            orderModel.findOne({ _id: orderId, userId })
+        ]);
+        if (!order || String(orderInfo.receipt) !== String(order._id) || orderInfo.status !== 'paid' ||
+            Number(orderInfo.amount) !== Math.round(order.amount * 100)) {
+            return res.json({ success: false, message: 'Invalid Signature. Payment Failed' });
+        }
+
+        // Idempotent: e-mail is sent only on the first successful verification
+        const updated = await orderModel.findOneAndUpdate(
+            { _id: order._id, payment: false },
+            { $set: { payment: true, status: 'Paid' } },
+            { new: true }
+        );
+
+        if (updated) {
+            const customer = await userModel.findById(order.userId).select('email name');
+            sendBookOrderPlacedEmail({
+                userEmail: customer?.email, userName: customer?.name,
+                orderId: order._id, items: order.items,
+                amount: order.amount, paymentMethod: 'Razorpay', address: order.address
+            }).catch(e => console.log('Email error:', e.message));
+        }
+
+        res.json({ success: true, message: "Payment Successful & Order Placed!" });
     } catch (error) {
-        console.log(error);
-        res.json({ success: false, message: error.message });
+        console.error('verifyBookOrderRazorpay error:', error.message);
+        res.json({ success: false, message: clientError(error) });
     }
 };
 
 // API to place COD book order
 const placeBookOrderCOD = async (req, res) => {
     try {
-        const { userId, items, amount, address } = req.body;
-        if (!items || items.length === 0 || !amount || !address) {
-            return res.json({ success: false, message: 'Invalid order details' });
+        const { userId, items, address } = req.body;
+        const order = await prepareBookOrder(items, address);
+        if (order.error) {
+            return res.json({ success: false, message: order.error });
         }
 
-        const orderData = {
+        const newOrder = new orderModel({
             userId,
-            items,
-            amount,
-            address,
+            items: order.items,
+            amount: order.amount,
+            address: order.address,
             paymentMethod: "COD",
             payment: false,
             date: Date.now()
-        };
-
-        const newOrder = new orderModel(orderData);
+        });
         await newOrder.save();
 
         // Send order invoice email (non-blocking)
-        const customer = await userModel.findById(userId);
+        const customer = await userModel.findById(userId).select('email name');
         sendBookOrderPlacedEmail({
             userEmail: customer?.email, userName: customer?.name,
-            orderId: newOrder._id, items, amount,
-            paymentMethod: 'Cash on Delivery', address
+            orderId: newOrder._id, items: order.items, amount: order.amount,
+            paymentMethod: 'Cash on Delivery', address: order.address
         }).catch(e => console.log('Email error:', e.message));
 
         res.json({ success: true, message: 'Order Placed Successfully via Cash on Delivery!' });
 
     } catch (error) {
-        console.log(error);
-        res.json({ success: false, message: error.message });
+        console.error('placeBookOrderCOD error:', error.message);
+        res.json({ success: false, message: clientError(error) });
     }
 };
 
 // API to place Book Order using Therapique Tokens
 const placeBookOrderTokens = async (req, res) => {
     try {
-        const { userId, items, amount, address } = req.body;
-        if (!items || items.length === 0 || !amount || !address) {
-            return res.json({ success: false, message: 'Invalid order details' });
+        const { userId, items, address } = req.body;
+        const order = await prepareBookOrder(items, address);
+        if (order.error) {
+            return res.json({ success: false, message: order.error });
         }
+        const amount = Math.round(order.amount);
 
-        const userData = await userModel.findById(userId);
+        // Atomic, balance-guarded deduction (no negative amounts, no double spending)
+        const userData = await debitCoins(userId, amount, {
+            description: `Book Order Purchase (${order.items.length} items)`
+        });
+
         if (!userData) {
-            return res.json({ success: false, message: 'User not found' });
-        }
-
-        if (userData.therapiqueCoins < amount) {
-            return res.json({ 
-                success: false, 
-                message: `Insufficient Therapique Tokens balance! Required: T ${amount}, Available: T ${userData.therapiqueCoins}.` 
+            const current = await userModel.findById(userId).select('therapiqueCoins').lean();
+            if (!current) {
+                return res.json({ success: false, message: 'User not found' });
+            }
+            return res.json({
+                success: false,
+                message: `Insufficient Therapique Tokens balance! Required: T ${amount}, Available: T ${current.therapiqueCoins || 0}.`
             });
         }
 
-        // Deduct token amount as clean integer and record transaction
-        userData.therapiqueCoins = Math.round(userData.therapiqueCoins - amount);
-        userData.coinsTransactions.push({
-            type: 'spend',
-            amount: Math.round(amount),
-            description: `Book Order Purchase (${items.length} items)`,
-            date: new Date()
-        });
-
-        await userData.save();
-
-        const orderData = {
+        const newOrder = new orderModel({
             userId,
-            items,
-            amount: Math.round(amount),
-            address,
+            items: order.items,
+            amount,
+            address: order.address,
             paymentMethod: "Therapique Tokens",
             payment: true,
             date: Date.now()
-        };
-
-        const newOrder = new orderModel(orderData);
+        });
         await newOrder.save();
 
         // Send order invoice email (non-blocking)
         sendBookOrderPlacedEmail({
             userEmail: userData.email, userName: userData.name,
-            orderId: newOrder._id, items, amount: Math.round(amount),
-            paymentMethod: 'Therapique Tokens', address
+            orderId: newOrder._id, items: order.items, amount,
+            paymentMethod: 'Therapique Tokens', address: order.address
         }).catch(e => console.log('Email error:', e.message));
 
-        res.json({ 
-            success: true, 
-            message: `Order Placed Successfully using T ${Math.round(amount)} Therapique Tokens!`,
+        res.json({
+            success: true,
+            message: `Order Placed Successfully using T ${amount} Therapique Tokens!`,
             remainingCoins: Math.round(userData.therapiqueCoins)
         });
 
     } catch (error) {
-        console.log(error);
-        res.json({ success: false, message: error.message });
+        console.error('placeBookOrderTokens error:', error.message);
+        res.json({ success: false, message: clientError(error) });
     }
 };
 
@@ -1326,7 +1353,7 @@ const getUserOrders = async (req, res) => {
         res.json({ success: true, orders });
     } catch (error) {
         console.log(error);
-        res.json({ success: false, message: error.message });
+        res.json({ success: false, message: clientError(error) });
     }
 };
 
@@ -1335,6 +1362,9 @@ const getSingleOrder = async (req, res) => {
     try {
         const { orderId } = req.params;
         const { userId } = req.body;
+        if (!isObjectId(orderId)) {
+            return res.json({ success: false, message: 'Order not found' });
+        }
         const order = await orderModel.findOne({ _id: orderId, userId });
         if (!order) {
             return res.json({ success: false, message: 'Order not found' });
@@ -1342,33 +1372,7 @@ const getSingleOrder = async (req, res) => {
         res.json({ success: true, order });
     } catch (error) {
         console.log(error);
-        res.json({ success: false, message: error.message });
-    }
-};
-
-// API to update order status (for Admin / Live Simulator)
-const updateOrderStatus = async (req, res) => {
-    try {
-        const { orderId, status } = req.body;
-        if (!orderId || !status) {
-            return res.json({ success: false, message: 'Missing orderId or status' });
-        }
-        await orderModel.findByIdAndUpdate(orderId, { status, isManualStatus: true });
-
-        // Send status update email (non-blocking)
-        const order = await orderModel.findById(orderId);
-        if (order) {
-            const customer = await userModel.findById(order.userId);
-            sendOrderStatusUpdateEmail({
-                userEmail: customer?.email, userName: customer?.name,
-                orderId: order._id, status
-            }).catch(e => console.log('Email error:', e.message));
-        }
-
-        res.json({ success: true, message: `Order status updated to "${status}"` });
-    } catch (error) {
-        console.log(error);
-        res.json({ success: false, message: error.message });
+        res.json({ success: false, message: clientError(error) });
     }
 };
 
@@ -1379,6 +1383,12 @@ const claimRefund = async (req, res) => {
 
         if (!appointmentId || !refundChoice) {
             return res.json({ success: false, message: "Appointment ID and refund choice are required" });
+        }
+        if (refundChoice !== 'tokens' && refundChoice !== 'bank') {
+            return res.json({ success: false, message: "Invalid refund choice. Must be 'tokens' or 'bank'." });
+        }
+        if (!isObjectId(appointmentId)) {
+            return res.json({ success: false, message: "Appointment not found" });
         }
 
         const appointment = await appointmentModel.findById(appointmentId);
@@ -1394,33 +1404,36 @@ const claimRefund = async (req, res) => {
             return res.json({ success: false, message: "This appointment is not cancelled" });
         }
 
-        if (appointment.refundStatus && appointment.refundStatus !== 'pending_choice') {
+        // Atomically claim the refund: only ONE request can move it out of the pending state
+        const claimed = await appointmentModel.findOneAndUpdate(
+            { _id: appointmentId, userId, cancelled: true, payment: true, refundStatus: { $in: ['pending_choice', '', null] } },
+            { $set: { refundStatus: 'processing' } },
+            { new: false }
+        );
+        if (!claimed) {
             return res.json({ success: false, message: `Refund has already been processed as ${appointment.refundStatus}` });
         }
 
-        const amount = appointment.amount || 0;
-        const user = await userModel.findById(userId);
-        const doctor = await doctorModel.findById(appointment.docId);
+        const amount = claimed.amount || 0;
+        const [user, doctor] = await Promise.all([
+            userModel.findById(userId).select('email name therapiqueCoins'),
+            doctorModel.findById(claimed.docId).select('name')
+        ]);
+        const doctorName = doctor?.name || claimed.docData?.name || 'Doctor';
 
         if (refundChoice === 'tokens') {
             // Instant 1:1 Tokens credit
-            user.therapiqueCoins = (user.therapiqueCoins || 0) + amount;
-            user.coinsTransactions.push({
-                type: 'earn',
-                amount: amount,
-                description: `Refund for Cancelled Session (Dr. ${doctor?.name || appointment.docData?.name || 'Doctor'})`,
-                date: new Date()
+            const credited = await creditCoins(userId, amount, {
+                description: `Refund for Cancelled Session (Dr. ${doctorName})`,
+                appointmentId: String(appointmentId)
             });
-            await user.save();
-
-            appointment.refundStatus = 'refunded_tokens';
-            await appointment.save();
+            await appointmentModel.findByIdAndUpdate(appointmentId, { refundStatus: 'refunded_tokens' });
 
             sendRefundConfirmedEmail({
-                appointmentId: appointment._id,
-                patientEmail: user.email,
-                patientName: user.name,
-                doctorName: doctor?.name || appointment.docData?.name,
+                appointmentId: claimed._id,
+                patientEmail: user?.email,
+                patientName: user?.name,
+                doctorName: doctor?.name || claimed.docData?.name,
                 amount,
                 refundMethod: 'tokens'
             }).catch(e => console.log('Email error:', e.message));
@@ -1428,48 +1441,48 @@ const claimRefund = async (req, res) => {
             return res.json({
                 success: true,
                 message: `₹${amount} successfully credited as ${amount} Therapique Tokens to your wallet!`,
-                therapiqueCoins: user.therapiqueCoins,
+                therapiqueCoins: credited?.therapiqueCoins ?? user?.therapiqueCoins ?? 0,
                 refundStatus: 'refunded_tokens'
             });
-        } else if (refundChoice === 'bank') {
-            // Direct Razorpay refund
-            try {
-                if (appointment.paymentId && razorpayInstance) {
-                    await razorpayInstance.payments.refund(appointment.paymentId, {
-                        amount: amount * 100,
-                        speed: "optimum",
-                        notes: { reason: "Refund claimed by patient for cancelled appointment" }
-                    });
-                }
-            } catch (err) {
-                console.log("Razorpay refund API call error:", err.message);
-            }
-
-            appointment.refundStatus = 'refunded_bank';
-            await appointment.save();
-
-            sendRefundConfirmedEmail({
-                appointmentId: appointment._id,
-                patientEmail: user.email,
-                patientName: user.name,
-                doctorName: doctor?.name || appointment.docData?.name,
-                amount,
-                refundMethod: 'bank'
-            }).catch(e => console.log('Email error:', e.message));
-
-            return res.json({
-                success: true,
-                message: `₹${amount} refund initiated directly to your original Bank / UPI account via Razorpay!`,
-                therapiqueCoins: user.therapiqueCoins || 0,
-                refundStatus: 'refunded_bank'
-            });
-        } else {
-            return res.json({ success: false, message: "Invalid refund choice. Must be 'tokens' or 'bank'." });
         }
 
+        // Direct Razorpay refund
+        if (claimed.paymentId && razorpayInstance) {
+            try {
+                await razorpayInstance.payments.refund(claimed.paymentId, {
+                    amount: amount * 100,
+                    speed: "optimum",
+                    notes: { reason: "Refund claimed by patient for cancelled appointment" }
+                });
+            } catch (err) {
+                console.log("Razorpay refund API call error:", err.message);
+                // Release the claim so the patient can retry or choose tokens instead
+                await appointmentModel.findByIdAndUpdate(appointmentId, { refundStatus: 'pending_choice' });
+                return res.json({ success: false, message: "Bank refund could not be initiated right now. Please try again later or choose Therapique Tokens." });
+            }
+        }
+
+        await appointmentModel.findByIdAndUpdate(appointmentId, { refundStatus: 'refunded_bank' });
+
+        sendRefundConfirmedEmail({
+            appointmentId: claimed._id,
+            patientEmail: user?.email,
+            patientName: user?.name,
+            doctorName: doctor?.name || claimed.docData?.name,
+            amount,
+            refundMethod: 'bank'
+        }).catch(e => console.log('Email error:', e.message));
+
+        return res.json({
+            success: true,
+            message: `₹${amount} refund initiated directly to your original Bank / UPI account via Razorpay!`,
+            therapiqueCoins: user?.therapiqueCoins || 0,
+            refundStatus: 'refunded_bank'
+        });
+
     } catch (error) {
-        console.log(error);
-        res.json({ success: false, message: error.message });
+        console.error('claimRefund error:', error.message);
+        res.json({ success: false, message: clientError(error) });
     }
 };
 
@@ -1478,7 +1491,7 @@ const subscribeNewsletter = async (req, res) => {
     try {
         const { email } = req.body;
 
-        if (!email || !validator.isEmail(email)) {
+        if (typeof email !== 'string' || email.length > 254 || !validator.isEmail(email)) {
             return res.json({ success: false, message: 'Please provide a valid email address' });
         }
 
@@ -1500,7 +1513,7 @@ const subscribeNewsletter = async (req, res) => {
         });
     } catch (error) {
         console.log('Newsletter subscription error:', error);
-        res.json({ success: false, message: error.message || 'Failed to subscribe' });
+        res.json({ success: false, message: clientError(error) });
     }
 };
 
@@ -1510,7 +1523,7 @@ const verifyAppointmentJoinUser = async (req, res) => {
         const userId = req.body.userId;
         const appointmentId = req.params.appointmentId || req.body.appointmentId;
 
-        if (!appointmentId) {
+        if (!isObjectId(appointmentId)) {
             return res.json({ success: false, canJoin: false, message: 'Appointment ID required' });
         }
 
@@ -1542,7 +1555,7 @@ const verifyAppointmentJoinUser = async (req, res) => {
         });
     } catch (error) {
         console.log('verifyAppointmentJoinUser error:', error);
-        res.json({ success: false, canJoin: false, message: error.message });
+        res.json({ success: false, canJoin: false, message: clientError(error) });
     }
 };
 
@@ -1551,11 +1564,11 @@ const changePassword = async (req, res) => {
     try {
         const { userId, currentPassword, newPassword } = req.body;
 
-        if (!userId || !currentPassword || !newPassword) {
+        if (!userId || typeof currentPassword !== 'string' || typeof newPassword !== 'string' || !currentPassword || !newPassword) {
             return res.json({ success: false, message: "Please provide your current password and new password." });
         }
 
-        if (newPassword.length < 8) {
+        if (!isValidPassword(newPassword)) {
             return res.json({ success: false, message: "New password must be at least 8 characters long." });
         }
 
@@ -1569,14 +1582,15 @@ const changePassword = async (req, res) => {
             return res.json({ success: false, message: "Current password is incorrect." });
         }
 
-        const salt = await bcrypt.genSalt(10);
-        user.password = await bcrypt.hash(newPassword, salt);
+        user.password = await hashPassword(newPassword);
+        // Revoke every other session; the caller receives a fresh token
+        user.tokenVersion = (user.tokenVersion || 0) + 1;
         await user.save();
 
-        res.json({ success: true, message: "Password updated successfully!" });
+        res.json({ success: true, message: "Password updated successfully!", token: signToken('user', user._id, user.tokenVersion) });
     } catch (error) {
-        console.log('changePassword error:', error);
-        res.json({ success: false, message: error.message });
+        console.error('changePassword error:', error.message);
+        res.json({ success: false, message: clientError(error) });
     }
 };
 
@@ -1585,22 +1599,29 @@ const sendResetPasswordOtp = async (req, res) => {
     try {
         const { email } = req.body;
 
-        if (!email || !validator.isEmail(email)) {
+        if (typeof email !== 'string' || email.length > 254 || !validator.isEmail(email)) {
             return res.json({ success: false, message: "Please provide a valid email address." });
         }
 
-        const user = await userModel.findOne({ email: email.toLowerCase().trim() });
+        const user = await userModel.findOne({ email: normalizeEmail(email) });
+        // Same response whether or not the account exists (prevents account enumeration)
+        const genericResponse = { success: true, message: "If an account exists for this email, a 6-digit reset code has been sent." };
         if (!user) {
-            return res.json({ success: false, message: "No account found with this email address." });
+            return res.json(genericResponse);
         }
 
-        // Generate 6-digit OTP
-        const otp = Math.floor(100000 + Math.random() * 900000).toString();
-        const otpHash = crypto.createHash('sha256').update(otp).digest('hex');
+        // Cooldown between codes to prevent e-mail bombing
+        if (Date.now() - (user.verifyOtpLastSentAt || 0) < OTP_RESEND_COOLDOWN_MS) {
+            return res.json(genericResponse);
+        }
+
+        // Generate cryptographically secure 6-digit OTP
+        const { otp, hash: otpHash } = generateOtp();
 
         user.verifyOtp = otpHash;
-        user.verifyOtpExpireAt = Date.now() + 10 * 60 * 1000; // 10 minutes
+        user.verifyOtpExpireAt = Date.now() + OTP_TTL_MS; // 10 minutes
         user.verifyOtpAttempts = 0;
+        user.verifyOtpLastSentAt = Date.now();
         await user.save();
 
         // Send OTP via Brevo
@@ -1610,10 +1631,10 @@ const sendResetPasswordOtp = async (req, res) => {
             otp
         });
 
-        res.json({ success: true, message: "A 6-digit reset code has been sent to your email." });
+        res.json(genericResponse);
     } catch (error) {
-        console.log('sendResetPasswordOtp error:', error);
-        res.json({ success: false, message: error.message });
+        console.error('sendResetPasswordOtp error:', error.message);
+        res.json({ success: false, message: clientError(error) });
     }
 };
 
@@ -1622,39 +1643,48 @@ const verifyResetPasswordOtp = async (req, res) => {
     try {
         const { email, otp, newPassword } = req.body;
 
-        if (!email || !otp || !newPassword) {
+        if (typeof email !== 'string' || typeof otp !== 'string' || typeof newPassword !== 'string' || !email || !otp || !newPassword) {
             return res.json({ success: false, message: "Please provide email, 6-digit code, and your new password." });
         }
 
-        if (newPassword.length < 8) {
+        if (!isValidPassword(newPassword)) {
             return res.json({ success: false, message: "New password must be at least 8 characters long." });
         }
 
-        const user = await userModel.findOne({ email: email.toLowerCase().trim() });
-        if (!user) {
-            return res.json({ success: false, message: "User not found." });
+        const invalidCode = { success: false, message: "Invalid or expired reset code. Please request a new one." };
+        const user = await userModel.findOne({ email: normalizeEmail(email) });
+        if (!user || !user.verifyOtp || !user.verifyOtpExpireAt || Date.now() > user.verifyOtpExpireAt) {
+            return res.json(invalidCode);
         }
 
-        if (!user.verifyOtpExpireAt || Date.now() > user.verifyOtpExpireAt) {
-            return res.json({ success: false, message: "Reset code has expired. Please request a new one." });
+        // Brute-force protection: the code is destroyed after too many wrong guesses
+        if ((user.verifyOtpAttempts || 0) >= MAX_OTP_ATTEMPTS) {
+            user.verifyOtp = "";
+            user.verifyOtpExpireAt = 0;
+            await user.save();
+            return res.json({ success: false, message: "Too many failed attempts. Please request a new reset code." });
         }
 
-        const inputHash = crypto.createHash('sha256').update(otp.trim()).digest('hex');
-        if (inputHash !== user.verifyOtp) {
+        if (hashOtp(otp) !== user.verifyOtp) {
+            user.verifyOtpAttempts = (user.verifyOtpAttempts || 0) + 1;
+            await user.save();
             return res.json({ success: false, message: "Invalid reset code. Please check and try again." });
         }
 
-        const salt = await bcrypt.genSalt(10);
-        user.password = await bcrypt.hash(newPassword, salt);
+        user.password = await hashPassword(newPassword);
         user.verifyOtp = "";
         user.verifyOtpExpireAt = 0;
         user.verifyOtpAttempts = 0;
+        // Receiving the code by e-mail proves ownership of the address
+        if (user.emailVerified === false) user.emailVerified = true;
+        // Revoke every existing session after a reset
+        user.tokenVersion = (user.tokenVersion || 0) + 1;
         await user.save();
 
         res.json({ success: true, message: "Password reset successful! You can now log in with your new password." });
     } catch (error) {
-        console.log('verifyResetPasswordOtp error:', error);
-        res.json({ success: false, message: error.message });
+        console.error('verifyResetPasswordOtp error:', error.message);
+        res.json({ success: false, message: clientError(error) });
     }
 };
 
@@ -1684,7 +1714,6 @@ export {
     placeBookOrderTokens,
     getUserOrders,
     getSingleOrder,
-    updateOrderStatus,
     subscribeNewsletter,
     verifyAppointmentJoinUser
 }

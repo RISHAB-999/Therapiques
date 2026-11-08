@@ -139,6 +139,8 @@ const ExploreSpecialties = ({
                                 <div className="flex items-center justify-between mb-4">
                                     <div className="w-14 h-14 rounded-2xl overflow-hidden bg-[#FAF5EE] border border-[#EADBCE] p-1 shadow-2xs group-hover:scale-105 transition-transform">
                                         <img
+                                            loading="lazy"
+                                            decoding="async"
                                             src={spec.image}
                                             alt={spec.speciality}
                                             className="w-full h-full object-cover rounded-xl"
@@ -199,6 +201,8 @@ const ExploreSpecialties = ({
                             <div className="flex items-center gap-3">
                                 <div className="w-9 h-9 rounded-xl overflow-hidden bg-white border border-[#EADBCE]">
                                     <img
+                                        loading="lazy"
+                                        decoding="async"
                                         src={activeSpecialty.image}
                                         alt={activeSpecialty.speciality}
                                         className="w-full h-full object-cover"
@@ -287,6 +291,8 @@ const ExploreSpecialties = ({
                                                 className="p-3.5 rounded-2xl bg-white border border-[#EADBCE] hover:border-purple-300 hover:shadow-xs transition-all cursor-pointer group flex items-start gap-3"
                                             >
                                                 <img
+                                                    loading="lazy"
+                                                    decoding="async"
                                                     src={art.image}
                                                     alt={art.title}
                                                     className="w-16 h-16 rounded-xl object-cover shrink-0"
@@ -333,6 +339,8 @@ const ExploreSpecialties = ({
                                             >
                                                 <div className="flex items-center gap-3 mb-2.5">
                                                     <img
+                                                        loading="lazy"
+                                                        decoding="async"
                                                         src={doc.image}
                                                         alt={doc.name}
                                                         className="w-12 h-12 rounded-full object-cover border border-[#EADBCE]"
@@ -395,6 +403,8 @@ const ExploreSpecialties = ({
                                             >
                                                 <div className="w-14 h-18 rounded-lg overflow-hidden bg-gray-100 shrink-0 border border-gray-200">
                                                     <img
+                                                        loading="lazy"
+                                                        decoding="async"
                                                         src={Array.isArray(b.image) ? b.image[0] : b.image}
                                                         alt={b.name || b.title}
                                                         className="w-full h-full object-cover group-hover:scale-105 transition-transform"

@@ -337,7 +337,7 @@ export const blogArticles = [
             role: 'Sleep & Wellness Specialist',
             avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=120&q=80',
         },
-        image: '/assets/blog/card3_rest_visor.png',
+        image: '/assets/blog/card3_rest_visor.webp',
         excerpt: 'Rest is not a reward you earn after exhausting yourself; it is a biological prerequisite for cognitive clarity and emotional equilibrium.',
         sections: [
             {

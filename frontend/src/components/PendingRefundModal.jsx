@@ -38,7 +38,7 @@ const PendingRefundModal = () => {
   useEffect(() => {
     if (token) {
       checkPendingRefunds()
-      const interval = setInterval(checkPendingRefunds, 15000)
+      const interval = setInterval(() => { if (!document.hidden) checkPendingRefunds() }, 15000)
       return () => clearInterval(interval)
     }
   }, [token, checkPendingRefunds])

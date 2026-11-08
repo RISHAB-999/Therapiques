@@ -16,6 +16,7 @@ const DoctorDashboard = () => {
 
   useEffect(() => {
     const timer = setInterval(() => {
+      if (document.hidden) return
       setCurrentTime(new Date())
     }, 5000)
     return () => clearInterval(timer)
@@ -39,6 +40,7 @@ const DoctorDashboard = () => {
     if (dToken) {
       getDashData()
       const interval = setInterval(() => {
+        if (document.hidden) return
         getDashData()
       }, 3000)
 

@@ -6,10 +6,11 @@ import { FaBagShopping, FaArrowRight } from 'react-icons/fa6'
 import { Receipt } from 'lucide-react'
 import ReceiptModal from '../components/ReceiptModal'
 import PaginationControls from '../components/PaginationControls'
+import { useStableState } from '../hooks/useStableState'
 
 const MyOrders = () => {
     const { currency, backendUrl, books = [], navigate, sanitizeImageUrl } = useContext(ShopContext)
-    const [orders, setOrders] = useState([])
+    const [orders, setOrders] = useStableState([])
     const [loading, setLoading] = useState(true)
     const [selectedReceiptOrder, setSelectedReceiptOrder] = useState(null)
     const [showReceiptModal, setShowReceiptModal] = useState(false)
@@ -49,6 +50,7 @@ const MyOrders = () => {
     useEffect(() => {
         fetchUserOrders()
         const interval = setInterval(() => {
+            if (document.hidden) return
             fetchUserOrders(true)
         }, 3000)
 

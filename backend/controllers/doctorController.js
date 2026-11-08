@@ -1,17 +1,14 @@
-import jwt from "jsonwebtoken";
 import bcrypt from "bcrypt";
 import doctorModel from "../models/doctorModel.js";
 import appointmentModel from "../models/appointmentModel.js";
 import userModel from "../models/userModel.js";
-import razorpay from 'razorpay'
 import { v2 as cloudinary } from 'cloudinary';
 import { sendAppointmentCancellationEmail, sendSessionCompletedEmails } from '../services/emailService.js';
 import { getAppointmentJoinStatus, normalizeSlotTime, normalizeSlotDate } from '../utils/appointmentTiming.js';
 
-const razorpayInstance = new razorpay({
-    key_id: process.env.RAZORPAY_KEY_ID || 'rzp_test_Synr1hf0zc3IAl',
-    key_secret: process.env.RAZORPAY_KEY_SECRET || 'test_secret',
-})
+import { signToken } from '../utils/tokens.js';
+import { clientError, isObjectId } from '../utils/security.js';
+import { creditCoins } from '../utils/coins.js';
 
 // Simple in-memory cache for doctorList — this endpoint is polled every 30s by every connected frontend user
 let doctorListCache = { data: null, timestamp: 0 }
@@ -21,7 +18,7 @@ const DOCTOR_LIST_CACHE_TTL = 30000 // 30 seconds — matches frontend polling i
 const loginDoctor = async (req, res) => {
     try {
         const { email, password } = req.body;
-        if (!email || !password) {
+        if (typeof email !== 'string' || typeof password !== 'string' || !email || !password) {
             return res.json({ success: false, message: "Invalid credentials" });
         }
 
@@ -38,7 +35,7 @@ const loginDoctor = async (req, res) => {
         const isMatch = await bcrypt.compare(password, user.password);
 
         if (isMatch) {
-            const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET);
+            const token = signToken('doctor', user._id, user.tokenVersion || 0);
             res.json({ success: true, token });
         } else {
             res.json({ success: false, message: "Invalid credentials" });
@@ -46,7 +43,7 @@ const loginDoctor = async (req, res) => {
 
     } catch (error) {
         console.log(error);
-        res.json({ success: false, message: error.message });
+        res.json({ success: false, message: clientError(error) });
     }
 };
 
@@ -85,7 +82,7 @@ const appointmentsDoctor = async (req, res) => {
 
     } catch (error) {
         console.log(error)
-        res.json({ success: false, message: error.message })
+        res.json({ success: false, message: clientError(error) })
     }
 }
 
@@ -94,15 +91,23 @@ const appointmentCancel = async (req, res) => {
     try {
         const docId = req.docId || req.body.docId
         const { appointmentId } = req.body
+        if (!isObjectId(appointmentId)) {
+            return res.json({ success: false, message: 'Unauthorized or Appointment not found' })
+        }
 
-        const appointmentData = await appointmentModel.findById(appointmentId)
-        if (appointmentData && appointmentData.docId === docId) {
-            if (appointmentData.cancelled) {
+        // 1. Atomically mark the doctor's own appointment as cancelled (prevents double refunds)
+        const appointmentData = await appointmentModel.findOneAndUpdate(
+            { _id: appointmentId, docId, cancelled: false },
+            { $set: { cancelled: true } },
+            { new: false }
+        )
+        if (!appointmentData) {
+            const existing = await appointmentModel.findById(appointmentId).select('docId cancelled').lean()
+            if (existing && existing.docId === docId && existing.cancelled) {
                 return res.json({ success: false, message: 'Appointment is already cancelled' });
             }
-
-            // 1. Mark appointment as cancelled
-            await appointmentModel.findByIdAndUpdate(appointmentId, { cancelled: true })
+        }
+        if (appointmentData) {
 
             // 2. Release doctor schedule slot
             const { slotDate, slotTime, userId, payment, amount } = appointmentData
@@ -116,16 +121,11 @@ const appointmentCancel = async (req, res) => {
             // 3. Refund logic based on payment method
             if (payment && userId) {
                 if (appointmentData.paidWithCoins) {
-                    const user = await userModel.findById(userId)
+                    const user = await creditCoins(userId, amount || 0, {
+                        description: `Refund for Cancelled Appointment with Dr. ${doctorData?.name || 'Doctor'}`,
+                        appointmentId: String(appointmentId)
+                    })
                     if (user) {
-                        user.therapiqueCoins = (user.therapiqueCoins || 0) + (amount || 0)
-                        user.coinsTransactions.push({
-                            type: 'earn',
-                            amount: amount,
-                            description: `Refund for Cancelled Appointment with Dr. ${doctorData?.name || 'Doctor'}`,
-                            date: new Date()
-                        })
-                        await user.save()
                         await appointmentModel.findByIdAndUpdate(appointmentId, { cancelled: true, refundStatus: 'refunded_tokens' })
                         sendAppointmentCancellationEmail({
                             appointmentId,
@@ -172,7 +172,7 @@ const appointmentCancel = async (req, res) => {
 
     } catch (error) {
         console.log(error)
-        return res.json({ success: false, message: error.message })
+        return res.json({ success: false, message: clientError(error) })
     }
 }
 
@@ -182,9 +182,12 @@ const appointmentComplete = async (req, res) => {
 
         const docId = req.docId || req.body.docId
         const { appointmentId } = req.body
+        if (!isObjectId(appointmentId)) {
+            return res.json({ success: false, message: 'Appointment not found or invalid' })
+        }
 
         const appointmentData = await appointmentModel.findById(appointmentId)
-        if (appointmentData && appointmentData.docId === docId) {
+        if (appointmentData && appointmentData.docId === docId && !appointmentData.cancelled) {
             await appointmentModel.findByIdAndUpdate(appointmentId, { isCompleted: true })
 
             // Look up patient & doctor details for completion notification emails
@@ -219,7 +222,7 @@ const appointmentComplete = async (req, res) => {
 
     } catch (error) {
         console.log(error)
-        return res.json({ success: false, message: error.message })
+        return res.json({ success: false, message: clientError(error) })
     }
 
 }
@@ -235,7 +238,7 @@ const doctorList = async (req, res) => {
 
         // Parallel fetch: doctors + active appointments (uses { docId: 1, cancelled: 1 } index)
         const [doctors, activeAppointments] = await Promise.all([
-            doctorModel.find({}).select(['-password', '-email']).lean(),
+            doctorModel.find({}).select(['-password', '-email', '-tokenVersion']).lean(),
             appointmentModel.find({ cancelled: false })
                 .select('docId slotDate slotTime')
                 .lean()
@@ -270,13 +273,16 @@ const doctorList = async (req, res) => {
 
     } catch (error) {
         console.log(error)
-        res.json({ success: false, message: error.message })
+        res.json({ success: false, message: clientError(error) })
     }
 }
 
 const changeAvailability = async (req, res) => {
     try {
         const { docId } = req.body
+        if (!isObjectId(docId)) {
+            return res.json({ success: false, message: "Doctor not found" });
+        }
 
         const docData = await doctorModel.findById(docId);
         if (!docData) {
@@ -297,7 +303,7 @@ const changeAvailability = async (req, res) => {
         console.log(error)
         res.json({
             success: false,
-            message: error.message,
+            message: clientError(error),
         });
     }
 }
@@ -308,13 +314,13 @@ const doctorProfile = async (req, res) => {
     try {
 
         const docId = req.docId || req.body.docId
-        const profileData = await doctorModel.findById(docId).select('-password')
+        const profileData = await doctorModel.findById(docId).select('-password -tokenVersion')
 
         res.json({ success: true, profileData })
 
     } catch (error) {
         console.log(error)
-        res.json({ success: false, message: error.message })
+        res.json({ success: false, message: clientError(error) })
     }
 }
 
@@ -342,21 +348,30 @@ const updateDoctorProfile = async (req, res) => {
         if (imageFile) {
             const imageUpload = await cloudinary.uploader.upload(imageFile.path, { resource_type: "image" })
             imageUrl = imageUpload.secure_url
-        } else if (image && typeof image === 'string' && image.startsWith('data:image')) {
+        } else if (typeof image === 'string' && image.length <= 7 * 1024 * 1024 && /^data:image\/(png|jpe?g|webp|gif);base64,[A-Za-z0-9+/=]+$/.test(image)) {
             const imageUpload = await cloudinary.uploader.upload(image, { resource_type: "image" })
             imageUrl = imageUpload.secure_url
         }
 
         const updateFields = {}
-        if (fees !== undefined && fees !== '') updateFields.fees = Number(fees) || fees
+        if (fees !== undefined && fees !== '') {
+            const parsedFees = Number(fees)
+            if (!Number.isFinite(parsedFees) || parsedFees < 1 || parsedFees > 100000) {
+                return res.json({ success: false, message: "Please enter valid consultation fees" })
+            }
+            updateFields.fees = Math.round(parsedFees)
+        }
+        if (parsedAddress !== undefined && (parsedAddress === null || typeof parsedAddress !== 'object' || Array.isArray(parsedAddress))) {
+            return res.json({ success: false, message: "Invalid address" })
+        }
         if (parsedAddress !== undefined) updateFields.address = parsedAddress
         if (available !== undefined) updateFields.available = (available === true || available === 'true')
-        if (about !== undefined) updateFields.about = about
+        if (about !== undefined) updateFields.about = String(about).slice(0, 5000)
         if (imageUrl) {
             updateFields.image = imageUrl
         }
 
-        const updatedDoctor = await doctorModel.findByIdAndUpdate(docId, updateFields, { new: true })
+        const updatedDoctor = await doctorModel.findByIdAndUpdate(docId, updateFields, { new: true, runValidators: true }).select('-password -tokenVersion')
 
         if (!updatedDoctor) {
             return res.json({ success: false, message: "Doctor not found in database" })
@@ -377,7 +392,7 @@ const updateDoctorProfile = async (req, res) => {
 
     } catch (error) {
         console.log("Error in updateDoctorProfile:", error)
-        res.json({ success: false, message: error.message })
+        res.json({ success: false, message: clientError(error) })
     }
 }
 
@@ -434,7 +449,7 @@ const doctorDashboard = async (req, res) => {
 
     } catch (error) {
         console.log(error)
-        res.json({ success: false, message: error.message })
+        res.json({ success: false, message: clientError(error) })
     }
 }
 
@@ -443,6 +458,9 @@ const generateCallTicket = async (req, res) => {
     try {
         const docId = req.docId || req.body.docId
         const { appointmentId } = req.body
+        if (!isObjectId(appointmentId)) {
+            return res.json({ success: false, message: 'Appointment not found' })
+        }
         const appointment = await appointmentModel.findById(appointmentId)
 
         if (!appointment) {
@@ -460,7 +478,7 @@ const generateCallTicket = async (req, res) => {
         res.json({ success: true, ticket })
     } catch (error) {
         console.log(error)
-        res.json({ success: false, message: error.message })
+        res.json({ success: false, message: clientError(error) })
     }
 }
 
@@ -470,7 +488,7 @@ const verifyAppointmentJoinDoctor = async (req, res) => {
         const docId = req.docId || req.body.docId;
         const appointmentId = req.params.appointmentId || req.body.appointmentId;
 
-        if (!appointmentId) {
+        if (!isObjectId(appointmentId)) {
             return res.json({ success: false, canJoin: false, message: 'Appointment ID required' });
         }
 
@@ -502,7 +520,7 @@ const verifyAppointmentJoinDoctor = async (req, res) => {
         });
     } catch (error) {
         console.log('verifyAppointmentJoinDoctor error:', error);
-        res.json({ success: false, canJoin: false, message: error.message });
+        res.json({ success: false, canJoin: false, message: clientError(error) });
     }
 };
 

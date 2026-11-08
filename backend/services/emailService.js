@@ -1,4 +1,11 @@
 import { sendMailSafe } from '../config/nodemailer.js';
+import { escapeDeep } from '../utils/security.js';
+
+// Every value interpolated into an e-mail template is HTML-escaped first, so user-controlled
+// text (names, contact messages, order statuses, addresses) can never inject markup or links.
+// Recipient addresses and one-time codes are passed through unchanged.
+const RAW_KEYS = /(^email$|Email$|^to$|^otp$)/
+const escaped = (fn) => (args = {}) => fn(escapeDeep(args, (key) => RAW_KEYS.test(key)))
 
 // ─────────────────────────────────────────────────
 // Shared HTML wrapper — Therapique beige/brown style with Anti-Quoting Engine
@@ -89,7 +96,7 @@ const tableWrap = (rowsHtml) => `
 // ─────────────────────────────────────────────────
 // 1. Appointment Booking Confirmation → Patient
 // ─────────────────────────────────────────────────
-export const sendAppointmentBookingEmail = async ({
+const sendAppointmentBookingEmailRaw = async ({
   appointmentId,
   patientEmail, patientName, doctorName, doctorSpeciality,
   slotDate, slotTime, amount, isPaid = true, paymentMethod = 'Online'
@@ -128,7 +135,7 @@ export const sendAppointmentBookingEmail = async ({
 // ─────────────────────────────────────────────────
 // 2. New Appointment Alert → Doctor
 // ─────────────────────────────────────────────────
-export const sendDoctorNewAppointmentAlert = async ({
+const sendDoctorNewAppointmentAlertRaw = async ({
   appointmentId,
   doctorEmail, doctorName, patientName, slotDate, slotTime
 }) => {
@@ -159,7 +166,7 @@ export const sendDoctorNewAppointmentAlert = async ({
 // ─────────────────────────────────────────────────
 // 3. Appointment Cancellation (Patient + Doctor + Therapique Official)
 // ─────────────────────────────────────────────────
-export const notifyAppointmentCancellation = async ({
+const notifyAppointmentCancellationRaw = async ({
   appointmentId,
   patientEmail,
   patientName,
@@ -336,12 +343,11 @@ ${refundMessage && !needsRefundChoice ? `<div class="card" style="border-left:4p
 };
 
 // Backwards-compatible alias for existing code
-export const sendAppointmentCancellationEmail = notifyAppointmentCancellation;
 
 // ─────────────────────────────────────────────────
 // 4. Refund Execution Confirmation → Patient
 // ─────────────────────────────────────────────────
-export const sendRefundConfirmedEmail = async ({
+const sendRefundConfirmedEmailRaw = async ({
   appointmentId,
   patientEmail,
   patientName,
@@ -382,7 +388,7 @@ export const sendRefundConfirmedEmail = async ({
 // ─────────────────────────────────────────────────
 // 5. Book Order Confirmation (Customer + Therapique Official)
 // ─────────────────────────────────────────────────
-export const sendBookOrderPlacedEmail = async ({
+const sendBookOrderPlacedEmailRaw = async ({
   userEmail, userName, orderId, items = [], amount = 0, paymentMethod = 'COD', address = {}
 }) => {
   const officialEmail = process.env.ADMIN_EMAIL || process.env.SMTP_USER || 'therapique.official@gmail.com';
@@ -487,7 +493,7 @@ ${addr ? `
 // ─────────────────────────────────────────────────
 // 6. Order Status Update → Customer
 // ─────────────────────────────────────────────────
-export const sendOrderStatusUpdateEmail = async ({
+const sendOrderStatusUpdateEmailRaw = async ({
   userEmail, userName, orderId, status = 'Order Placed'
 }) => {
   if (!userEmail) return;
@@ -513,7 +519,7 @@ export const sendOrderStatusUpdateEmail = async ({
 // ─────────────────────────────────────────────────
 // 7. Contact Form → Admin alert + User auto-reply
 // ─────────────────────────────────────────────────
-export const sendContactFormEmails = async ({ firstName, lastName, email, phone, message }) => {
+const sendContactFormEmailsRaw = async ({ firstName, lastName, email, phone, message }) => {
   const name = `${firstName || ''} ${lastName || ''}`.trim() || 'Visitor';
   const adminEmail = process.env.ADMIN_EMAIL || 'admin@therapique.com';
   const ticketId = Math.random().toString(36).substring(2, 8).toUpperCase();
@@ -568,7 +574,7 @@ export const sendContactFormEmails = async ({ firstName, lastName, email, phone,
 // ─────────────────────────────────────────────────
 // 8. Newsletter Subscription Confirmation → Subscriber & Admin Alert
 // ─────────────────────────────────────────────────
-export const sendNewsletterEmails = async ({ email }) => {
+const sendNewsletterEmailsRaw = async ({ email }) => {
   if (!email) return;
 
   const adminEmail = process.env.ADMIN_EMAIL || 'therapique.official@gmail.com';
@@ -639,7 +645,7 @@ export const sendNewsletterEmails = async ({ email }) => {
 // ─────────────────────────────────────────────────
 // 9. New User Registration → Welcome Email & Admin Notification
 // ─────────────────────────────────────────────────
-export const sendUserRegistrationEmails = async ({ name, email, userId }) => {
+const sendUserRegistrationEmailsRaw = async ({ name, email, userId }) => {
   if (!email) return;
 
   const userName = name || 'Friend';
@@ -714,7 +720,7 @@ export const sendUserRegistrationEmails = async ({ name, email, userId }) => {
 // ─────────────────────────────────────────────────
 // 10. Consultation Session Completed → Patient & Doctor & Admin
 // ─────────────────────────────────────────────────
-export const sendSessionCompletedEmails = async ({
+const sendSessionCompletedEmailsRaw = async ({
   appointmentId,
   patientEmail,
   patientName,
@@ -848,7 +854,7 @@ export const sendSessionCompletedEmails = async ({
 // ─────────────────────────────────────────────────
 // 10. 10-Minute Pre-Join Reminder Email → Patient
 // ─────────────────────────────────────────────────
-export const sendAppointmentTenMinReminderPatient = async ({
+const sendAppointmentTenMinReminderPatientRaw = async ({
   appointmentId,
   patientEmail, patientName, doctorName, doctorSpeciality,
   slotDate, slotTime, joinLink
@@ -899,7 +905,7 @@ export const sendAppointmentTenMinReminderPatient = async ({
 // ─────────────────────────────────────────────────
 // 11. 10-Minute Pre-Join Reminder Email → Doctor
 // ─────────────────────────────────────────────────
-export const sendAppointmentTenMinReminderDoctor = async ({
+const sendAppointmentTenMinReminderDoctorRaw = async ({
   appointmentId,
   doctorEmail, doctorName, patientName,
   slotDate, slotTime, joinLink
@@ -949,7 +955,7 @@ export const sendAppointmentTenMinReminderDoctor = async ({
 // ─────────────────────────────────────────────────
 // 12. Signup / Account Verification OTP Email → User
 // ─────────────────────────────────────────────────
-export const sendSignupOtpEmail = async ({ email, name, otp }) => {
+const sendSignupOtpEmailRaw = async ({ email, name, otp }) => {
   if (!email || !otp) return { success: false, error: 'Email and OTP are required' };
 
   if (process.env.NODE_ENV !== 'production' && (!process.env.SMTP_USER || !process.env.SMTP_PASS)) {
@@ -991,7 +997,7 @@ export const sendSignupOtpEmail = async ({ email, name, otp }) => {
 // ─────────────────────────────────────────────────
 // 13. Password Reset OTP Email → User
 // ─────────────────────────────────────────────────
-export const sendPasswordResetOtpEmail = async ({ email, name, otp }) => {
+const sendPasswordResetOtpEmailRaw = async ({ email, name, otp }) => {
   if (!email || !otp) return { success: false, error: 'Email and OTP are required' };
 
   if (process.env.NODE_ENV !== 'production' && (!process.env.SMTP_USER || !process.env.SMTP_PASS)) {
@@ -1030,4 +1036,19 @@ export const sendPasswordResetOtpEmail = async ({ email, name, otp }) => {
   });
 };
 
-
+// ─── Public API (inputs HTML-escaped) ───
+export const sendAppointmentBookingEmail = escaped(sendAppointmentBookingEmailRaw);
+export const sendDoctorNewAppointmentAlert = escaped(sendDoctorNewAppointmentAlertRaw);
+export const notifyAppointmentCancellation = escaped(notifyAppointmentCancellationRaw);
+export const sendRefundConfirmedEmail = escaped(sendRefundConfirmedEmailRaw);
+export const sendBookOrderPlacedEmail = escaped(sendBookOrderPlacedEmailRaw);
+export const sendOrderStatusUpdateEmail = escaped(sendOrderStatusUpdateEmailRaw);
+export const sendContactFormEmails = escaped(sendContactFormEmailsRaw);
+export const sendNewsletterEmails = escaped(sendNewsletterEmailsRaw);
+export const sendUserRegistrationEmails = escaped(sendUserRegistrationEmailsRaw);
+export const sendSessionCompletedEmails = escaped(sendSessionCompletedEmailsRaw);
+export const sendAppointmentTenMinReminderPatient = escaped(sendAppointmentTenMinReminderPatientRaw);
+export const sendAppointmentTenMinReminderDoctor = escaped(sendAppointmentTenMinReminderDoctorRaw);
+export const sendSignupOtpEmail = escaped(sendSignupOtpEmailRaw);
+export const sendPasswordResetOtpEmail = escaped(sendPasswordResetOtpEmailRaw);
+export const sendAppointmentCancellationEmail = notifyAppointmentCancellation;

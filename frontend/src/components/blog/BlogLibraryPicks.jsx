@@ -95,7 +95,7 @@ const BlogLibraryPicks = () => {
                                         className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                                         loading="lazy"
                                     />
-                                    <span className="absolute top-2.5 left-2.5 text-[10px] font-bold uppercase tracking-wider bg-white/90 backdrop-blur-md px-2.5 py-1 rounded-full border border-gray-200 text-gray-800 shadow-2xs">
+                                    <span className="absolute top-2.5 left-2.5 text-[10px] font-bold uppercase tracking-wider bg-white/90 md:backdrop-blur-md px-2.5 py-1 rounded-full border border-gray-200 text-gray-800 shadow-2xs">
                                         {book.category}
                                     </span>
                                 </div>

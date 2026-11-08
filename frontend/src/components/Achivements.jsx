@@ -1,55 +1,10 @@
-import React, { useMemo } from 'react'
+import React from 'react'
 import { motion } from 'motion/react'
 import Title from './Title'
+import TypewriterText from './TypewriterText'
 import { RiSecurePaymentLine, RiSoundModuleLine } from 'react-icons/ri'
 import { FaUsersLine } from 'react-icons/fa6'
 import { TbLocation } from 'react-icons/tb'
-
-// Highly optimized typewriter text reveal (GPU accelerated, word level)
-const TypewriterText = ({ text, className = '', delay = 0, speed = 0.035, as: Component = 'span' }) => {
-  const words = useMemo(() => text.split(' '), [text])
-  
-  const container = useMemo(() => ({
-    hidden: { opacity: 0 },
-    visible: {
-      opacity: 1,
-      transition: {
-        staggerChildren: speed,
-        delayChildren: delay,
-      },
-    },
-  }), [delay, speed])
-
-  const child = {
-    hidden: { opacity: 0, y: 3 },
-    visible: {
-      opacity: 1,
-      y: 0,
-      transition: { duration: 0.18, ease: 'easeOut' },
-    },
-  }
-
-  return (
-    <Component className={className}>
-      <motion.span
-        initial="hidden"
-        whileInView="visible"
-        viewport={{ once: true, amount: 0, margin: "100px 0px" }}
-        variants={container}
-        className="inline"
-      >
-        {words.map((word, index) => (
-          <React.Fragment key={index}>
-            <motion.span variants={child} className="inline-block transform-gpu">
-              {word}
-            </motion.span>
-            {index < words.length - 1 && ' '}
-          </React.Fragment>
-        ))}
-      </motion.span>
-    </Component>
-  )
-}
 
 const Achivements = () => {
   const statistics = [
@@ -95,7 +50,7 @@ const Achivements = () => {
           className='flex-[2] flex justify-center flex-col bg-gradient-to-l from-yellow-200 px-6 lg:px-12 py-16'
         >
           <h2 className='h2'>
-            <TypewriterText text="Our Journey So Far" delay={0.3} speed={0.04} />
+            <TypewriterText text="Our Journey So Far" delay={0.3} speed={0.04} inView />
           </h2>
           
           <motion.p 

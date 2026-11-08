@@ -99,6 +99,7 @@ const DoctorsList = () => {
     if (aToken) {
       getAllDoctors()
       const interval = setInterval(() => {
+        if (document.hidden) return
         getAllDoctors()
       }, 3000)
 

@@ -14,6 +14,7 @@ const Dashboard = () => {
     if (aToken) {
       getDashData()
       const interval = setInterval(() => {
+        if (document.hidden) return
         getDashData()
       }, 3000)
 

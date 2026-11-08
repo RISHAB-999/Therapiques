@@ -43,7 +43,9 @@ const doctorSchema = new mongoose.Schema({
     },
     fees: {
         type: Number,
-        required: true
+        required: true,
+        min: [1, 'Fees must be a positive amount'],
+        max: [100000, 'Fees are too high']
     },
     address: {
         type: Object,
@@ -56,6 +58,11 @@ const doctorSchema = new mongoose.Schema({
     slots_booked: {
         type: Object,
         default: {}
+    },
+    // Incremented when credentials change to revoke every previously issued doctor token
+    tokenVersion: {
+        type: Number,
+        default: 0
     }
 }, {
     minimize: false // Prevent mongoose from removing empty objects

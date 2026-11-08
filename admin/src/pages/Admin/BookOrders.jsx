@@ -7,6 +7,7 @@ import axios from 'axios'
 import TypewriterSearchInput from '../../components/TypewriterSearchInput'
 import CustomDropdown from '../../components/ui/CustomDropdown'
 import PaginationControls from '../../components/ui/PaginationControls'
+import { useStableState } from '../../hooks/useStableState'
 
 const standardCategories = [
   'Mental Health',
@@ -39,7 +40,7 @@ const BookOrders = () => {
   const { aToken } = useContext(AdminContext)
   const { backendUrl, currency } = useContext(AppContext)
 
-  const [orders, setOrders] = useState([])
+  const [orders, setOrders] = useStableState([])
   const [loading, setLoading] = useState(true)
   const [updatingOrderId, setUpdatingOrderId] = useState(null)
 
@@ -156,7 +157,7 @@ const BookOrders = () => {
   useEffect(() => {
     if (aToken) {
       fetchOrders(true)
-      const interval = setInterval(() => fetchOrders(false), 8000)
+      const interval = setInterval(() => { if (!document.hidden) fetchOrders(false) }, 8000)
       return () => clearInterval(interval)
     }
   }, [aToken])

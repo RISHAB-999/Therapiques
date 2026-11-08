@@ -1,6 +1,7 @@
 import { createContext, useEffect, useState, useMemo, useCallback } from "react";
 import { toast } from "react-toastify";
 import axios from 'axios'
+import { useStableState } from '../hooks/useStableState'
 
 export const AppContext = createContext()
 
@@ -12,9 +13,9 @@ const AppContextProvider = (props) => {
       ? 'http://localhost:4000'
       : (envBackendUrl || 'http://localhost:4000')
 
-    const [doctors, setDoctors] = useState([])
+    const [doctors, setDoctors] = useStableState([])
     const [token, setToken] = useState(localStorage.getItem('token') ? localStorage.getItem('token') : '')
-    const [userData, setUserData] = useState(false)
+    const [userData, setUserData] = useStableState(false)
 
     // Getting Doctors using API (with silent background polling support)
     const getDoctorData = useCallback(async (isSilent = false) => {
@@ -61,6 +62,7 @@ const AppContextProvider = (props) => {
 
         // 1. Background polling every 30 seconds to sync availability & wallet
         const interval = setInterval(() => {
+            if (document.hidden) return
             getDoctorData(true)
             if (token) {
                 loadUserProfileData()

@@ -7,6 +7,7 @@ import axios from 'axios'
 import TypewriterSearchInput from '../../components/TypewriterSearchInput'
 import CustomDropdown from '../../components/ui/CustomDropdown'
 import PaginationControls from '../../components/ui/PaginationControls'
+import { useStableState } from '../../hooks/useStableState'
 
 const adminBookPlaceholders = [
   'Search by book title...',
@@ -18,7 +19,7 @@ const BookList = () => {
   const { aToken } = useContext(AdminContext)
   const { backendUrl, currency } = useContext(AppContext)
 
-  const [books, setBooks] = useState([])
+  const [books, setBooks] = useStableState([])
   const [loading, setLoading] = useState(true)
   const [currentPage, setCurrentPage] = useState(1)
   const [searchQuery, setSearchQuery] = useState('')
@@ -106,6 +107,7 @@ const BookList = () => {
     if (aToken) {
       fetchBooks()
       const interval = setInterval(() => {
+        if (document.hidden) return
         fetchBooks(true)
       }, 3000)
 

@@ -2,6 +2,7 @@ import { useState, useEffect, createContext, useMemo, useCallback } from "react"
 import axios from 'axios'
 import { toast } from "react-toastify";
 import { useDoctorSocket } from "../hooks/useDoctorSocket";
+import { useStableState } from '../hooks/useStableState'
 
 export const DoctorContext = createContext();
 
@@ -13,9 +14,9 @@ const DoctorContextProvider = (props) => {
     : (envBackendUrl || 'http://localhost:4000')
 
   const [dToken, setDToken] = useState(localStorage.getItem('dToken') ? localStorage.getItem('dToken') : '')
-  const [appointments, setAppointments] = useState([])
-  const [dashData, setDashData] = useState(false)
-  const [profileData, setProfileData] = useState(false)
+  const [appointments, setAppointments] = useStableState([])
+  const [dashData, setDashData] = useStableState(false)
+  const [profileData, setProfileData] = useStableState(false)
 
   const doctorSocket = useDoctorSocket(backendUrl, dToken)
 

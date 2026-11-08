@@ -1,4 +1,3 @@
-import jwt from "jsonwebtoken";
 import appointmentModel from "../models/appointmentModel.js";
 import doctorModel from "../models/doctorModel.js";
 import bcrypt from "bcrypt";
@@ -8,6 +7,14 @@ import userModel from "../models/userModel.js";
 import bookModel from "../models/bookModel.js";
 import orderModel from "../models/orderModel.js";
 import { notifyAppointmentCancellation } from "../services/emailService.js";
+import { signAdminToken } from "../utils/tokens.js";
+import { safeEqual, clientError, isObjectId, isNonEmptyString } from "../utils/security.js";
+import { creditCoins } from "../utils/coins.js";
+
+const parseFees = (fees) => {
+    const value = Number(fees);
+    return Number.isFinite(value) && value >= 1 && value <= 100000 ? Math.round(value) : null;
+};
 
 //Api for adding doctor
 const addDoctor = async (req, res) => {
@@ -19,8 +26,17 @@ const addDoctor = async (req, res) => {
             return res.json({ success: false, message: "Missing Details" });
         }
 
-        if (!validator.isEmail(email)) {
+        if (typeof email !== 'string' || !validator.isEmail(email)) {
             return res.json({ success: false, message: "Please enter a valid email" });
+        }
+
+        if (!isNonEmptyString(name, 100) || typeof password !== 'string' || password.length > 128) {
+            return res.json({ success: false, message: "Missing Details" });
+        }
+
+        const parsedFees = parseFees(fees);
+        if (parsedFees === null) {
+            return res.json({ success: false, message: "Please enter valid consultation fees" });
         }
 
         if (password.length < 8) {
@@ -38,8 +54,7 @@ const addDoctor = async (req, res) => {
             return res.json({ success: false, message: "A doctor with this email already exists" });
         }
 
-        const salt = await bcrypt.genSalt(10);
-        const hashedPassword = await bcrypt.hash(password, salt);
+        const hashedPassword = await bcrypt.hash(password, await bcrypt.genSalt(12));
 
         const imageUpload = await cloudinary.uploader.upload(imageFile.path, { resource_type: "image" });
         const imageUrl = imageUpload.secure_url;
@@ -62,7 +77,7 @@ const addDoctor = async (req, res) => {
             degree,
             experience,
             about,
-            fees: Number(fees),
+            fees: parsedFees,
             address: parsedAddress,
             date: Date.now(),
         };
@@ -76,7 +91,7 @@ const addDoctor = async (req, res) => {
         if (error.code === 11000) {
             return res.json({ success: false, message: "A doctor with this email already exists" });
         }
-        res.json({ success: false, message: error.message });
+        res.json({ success: false, message: clientError(error) });
     }
 };
 
@@ -85,26 +100,28 @@ const loginAdmin = async (req, res) => {
     try {
         const { email, password } = req.body;
 
-        if (email === process.env.ADMIN_EMAIL && password === process.env.ADMIN_PASSWORD) {
-            const token = jwt.sign(email + password, process.env.JWT_SECRET);
-            res.json({ success: true, token });
+        // Constant-time comparison; the issued token never contains the credentials
+        const emailOk = safeEqual(String(email ?? ''), String(process.env.ADMIN_EMAIL ?? ''));
+        const passwordOk = safeEqual(String(password ?? ''), String(process.env.ADMIN_PASSWORD ?? ''));
+        if (emailOk && passwordOk) {
+            res.json({ success: true, token: signAdminToken() });
         } else {
             res.json({ success: false, message: "Invalid Credentials" });
         }
     } catch (error) {
         console.log(error);
-        res.json({ success: false, message: error.message });
+        res.json({ success: false, message: clientError(error) });
     }
 };
 
 // Api for get all doctor list for admin panel
 const allDoctors = async (req, res) => {
     try {
-        const doctors = await doctorModel.find({}).select("-password");
+        const doctors = await doctorModel.find({}).select("-password -tokenVersion");
         res.json({ success: true, doctors });
     } catch (error) {
         console.log(error);
-        res.json({ success: false, message: error.message });
+        res.json({ success: false, message: clientError(error) });
     }
 };
 
@@ -151,7 +168,7 @@ const appointmentsAdmin = async (req, res) => {
         res.json({ success: true, appointments: updatedAppointments });
     } catch (error) {
         console.log(error);
-        res.json({ success: false, message: error.message });
+        res.json({ success: false, message: clientError(error) });
     }
 };
 
@@ -159,10 +176,19 @@ const appointmentsAdmin = async (req, res) => {
 const appointmentCancel = async (req, res) => {
     try {
         const { appointmentId } = req.body;
-
-        const appointmentData = await appointmentModel.findById(appointmentId);
-        if (!appointmentData) {
+        if (!isObjectId(appointmentId)) {
             return res.json({ success: false, message: 'Appointment not found' });
+        }
+
+        // Atomic cancel: a second click / concurrent request can never refund twice
+        const appointmentData = await appointmentModel.findOneAndUpdate(
+            { _id: appointmentId, cancelled: false },
+            { $set: { cancelled: true } },
+            { new: false }
+        );
+        if (!appointmentData) {
+            const exists = await appointmentModel.exists({ _id: appointmentId });
+            return res.json({ success: false, message: exists ? 'Appointment is already cancelled' : 'Appointment not found' });
         }
 
         // releasing doctor slot safely
@@ -182,16 +208,11 @@ const appointmentCancel = async (req, res) => {
 
         if (appointmentData.payment && appointmentData.userId) {
             if (appointmentData.paidWithCoins) {
-                const user = await userModel.findById(appointmentData.userId);
+                const user = await creditCoins(appointmentData.userId, appointmentData.amount || 0, {
+                    description: `Refund for Cancelled Appointment with Dr. ${doctorData?.name || appointmentData.docData?.name || 'Doctor'} (Admin Cancelled)`,
+                    appointmentId: String(appointmentId)
+                });
                 if (user) {
-                    user.therapiqueCoins = (user.therapiqueCoins || 0) + (appointmentData.amount || 0);
-                    user.coinsTransactions.push({
-                        type: 'earn',
-                        amount: appointmentData.amount,
-                        description: `Refund for Cancelled Appointment with Dr. ${doctorData?.name || appointmentData.docData?.name || 'Doctor'} (Admin Cancelled)`,
-                        date: new Date()
-                    });
-                    await user.save();
                     await appointmentModel.findByIdAndUpdate(appointmentId, { cancelled: true, refundStatus: 'refunded_tokens' });
                     refundMessage = `${appointmentData.amount} Therapique Tokens refunded to patient wallet.`;
                 }
@@ -228,7 +249,7 @@ const appointmentCancel = async (req, res) => {
 
     } catch (error) {
         console.log(error);
-        res.json({ success: false, message: error.message });
+        res.json({ success: false, message: clientError(error) });
     }
 };
 
@@ -341,7 +362,7 @@ const adminDashboard = async (req, res) => {
 
     } catch (error) {
         console.log(error);
-        res.json({ success: false, message: error.message });
+        res.json({ success: false, message: clientError(error) });
     }
 };
 
@@ -350,7 +371,7 @@ const updateDoctorCredentials = async (req, res) => {
     try {
         const { docId, email, password } = req.body;
 
-        if (!docId) {
+        if (!isObjectId(docId)) {
             return res.json({ success: false, message: "Doctor ID is required" });
         }
 
@@ -363,7 +384,7 @@ const updateDoctorCredentials = async (req, res) => {
         const messages = [];
 
         // If email is provided and differs
-        if (email && email.trim()) {
+        if (typeof email === 'string' && email.trim()) {
             const trimmedEmail = email.trim().toLowerCase();
             if (!validator.isEmail(trimmedEmail)) {
                 return res.json({ success: false, message: "Please enter a valid email address" });
@@ -385,23 +406,22 @@ const updateDoctorCredentials = async (req, res) => {
         }
 
         // If new password is provided
-        if (password && password.trim()) {
+        if (typeof password === 'string' && password.trim()) {
             const trimmedPassword = password.trim();
-            if (trimmedPassword.length < 8) {
+            if (trimmedPassword.length < 8 || trimmedPassword.length > 128) {
                 return res.json({ success: false, message: "Password must be at least 8 characters long" });
             }
 
-            const salt = await bcrypt.genSalt(10);
-            const hashedPassword = await bcrypt.hash(trimmedPassword, salt);
-            updates.password = hashedPassword;
+            updates.password = await bcrypt.hash(trimmedPassword, await bcrypt.genSalt(12));
             messages.push("Password updated successfully");
         }
 
         if (Object.keys(updates).length === 0) {
-            return res.json({ success: true, message: "No changes to update", doctor });
+            return res.json({ success: true, message: "No changes to update", doctor: await doctorModel.findById(docId).select('-password -tokenVersion') });
         }
 
-        const updatedDoctor = await doctorModel.findByIdAndUpdate(docId, updates, { new: true });
+        // Credential change signs the doctor out everywhere
+        const updatedDoctor = await doctorModel.findByIdAndUpdate(docId, { $set: updates, $inc: { tokenVersion: 1 } }, { new: true }).select('-password -tokenVersion');
 
         res.json({
             success: true,
@@ -411,7 +431,7 @@ const updateDoctorCredentials = async (req, res) => {
 
     } catch (error) {
         console.log(error);
-        res.json({ success: false, message: error.message });
+        res.json({ success: false, message: clientError(error) });
     }
 };
 

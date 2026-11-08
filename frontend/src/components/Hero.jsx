@@ -1,7 +1,7 @@
 import React, { useContext, useMemo } from 'react'
 import { motion } from 'motion/react'
-import bg from '../assets/bg.png'
-import bgHero from '../assets/bg-hero.png'
+import bg from '../assets/bg.webp'
+import bgHero from '../assets/bg-hero.webp'
 import { FaArrowRight } from 'react-icons/fa'
 import { Link } from 'react-router-dom'
 import { Swiper, SwiperSlide } from 'swiper/react'
@@ -9,53 +9,12 @@ import 'swiper/css'
 import { Autoplay } from 'swiper/modules'
 import Item from './Item'
 import { ShopContext } from '../context/ShopContext'
+import TypewriterText from './TypewriterText'
+import { useInViewAutoplay } from '../hooks/useInViewAutoplay'
 
-// Lightweight text reveal for headings and key phrases (GPU accelerated)
-const TypewriterText = ({ text, className = '', delay = 0, speed = 0.035, as: Component = 'span' }) => {
-    const words = useMemo(() => text.split(' '), [text])
-
-    const container = useMemo(() => ({
-        hidden: { opacity: 0 },
-        visible: {
-            opacity: 1,
-            transition: {
-                staggerChildren: speed,
-                delayChildren: delay,
-            },
-        },
-    }), [delay, speed])
-
-    const child = {
-        hidden: { opacity: 0, y: 3 },
-        visible: {
-            opacity: 1,
-            y: 0,
-            transition: { duration: 0.18, ease: 'easeOut' },
-        },
-    }
-
-    return (
-        <Component className={className}>
-            <motion.span
-                initial="hidden"
-                animate="visible"
-                variants={container}
-                className="inline"
-            >
-                {words.map((word, index) => (
-                    <React.Fragment key={index}>
-                        <motion.span variants={child} className="inline-block transform-gpu">
-                            {word}
-                        </motion.span>
-                        {index < words.length - 1 && ' '}
-                    </React.Fragment>
-                ))}
-            </motion.span>
-        </Component>
-    )
-}
 
 const Hero = () => {
+    const onSwiper = useInViewAutoplay()
     const { books } = useContext(ShopContext)
 
     // Memoize popular books to prevent re-renders on route navigation
@@ -152,6 +111,7 @@ const Hero = () => {
                     className='w-full max-w-[270px] mx-auto flex items-center justify-center relative py-6'
                 >
                     <Swiper
+                        onSwiper={onSwiper}
                         speed={900}
                         slidesPerView={1}
                         spaceBetween={120}

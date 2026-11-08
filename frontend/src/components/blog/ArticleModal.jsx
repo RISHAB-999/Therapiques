@@ -163,6 +163,8 @@ const ArticleModal = ({ article, onClose, onSelectRelated, onBack, backLabel }) 
                         <div className="flex items-center justify-between flex-wrap gap-3 pb-5 border-b border-[#EADBCE]">
                             <div className="flex items-center gap-3.5">
                                 <img
+                                    loading="lazy"
+                                    decoding="async"
                                     src={article.author.avatar}
                                     alt={article.author.name}
                                     className="w-12 h-12 rounded-full object-cover border border-[#EADBCE] shadow-2xs"
@@ -186,6 +188,8 @@ const ArticleModal = ({ article, onClose, onSelectRelated, onBack, backLabel }) 
                             : 'bg-[#FAF5EE]'
                     }`}>
                         <img
+                            loading="lazy"
+                            decoding="async"
                             src={article.image}
                             alt={article.title}
                             className={`w-full h-full ${
@@ -340,6 +344,8 @@ const ArticleModal = ({ article, onClose, onSelectRelated, onBack, backLabel }) 
                                 <div className="flex items-center gap-3.5">
                                     <div className="w-12 h-12 rounded-2xl overflow-hidden bg-white border border-emerald-200 shrink-0">
                                         <img
+                                            loading="lazy"
+                                            decoding="async"
                                             src={relatedSpecialtyObj.image}
                                             alt={relatedSpecialtyObj.speciality}
                                             className="w-full h-full object-cover"
@@ -378,6 +384,8 @@ const ArticleModal = ({ article, onClose, onSelectRelated, onBack, backLabel }) 
                                 <div className="flex items-center gap-3.5">
                                     <div className="w-12 h-16 rounded-lg overflow-hidden bg-white border border-gray-200 shrink-0 shadow-2xs">
                                         <img
+                                            loading="lazy"
+                                            decoding="async"
                                             src={Array.isArray(matchingLibraryBook.image) ? matchingLibraryBook.image[0] : matchingLibraryBook.image}
                                             alt={matchingLibraryBook.name || matchingLibraryBook.title}
                                             className="w-full h-full object-cover"
@@ -451,6 +459,8 @@ const ArticleModal = ({ article, onClose, onSelectRelated, onBack, backLabel }) 
                                         className="p-3.5 rounded-2xl bg-white border border-[#EADBCE] hover:border-gray-400 transition-all cursor-pointer group flex items-start gap-3"
                                     >
                                         <img
+                                            loading="lazy"
+                                            decoding="async"
                                             src={rel.image}
                                             alt={rel.title}
                                             className="w-16 h-16 rounded-xl object-cover shrink-0"

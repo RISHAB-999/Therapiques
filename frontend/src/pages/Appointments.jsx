@@ -240,6 +240,7 @@ const Appointments = () => {
   useEffect(() => {
     getDoctorData(true)
     const interval = setInterval(() => {
+      if (document.hidden) return
       getDoctorData(true)
     }, 4000)
     return () => clearInterval(interval)

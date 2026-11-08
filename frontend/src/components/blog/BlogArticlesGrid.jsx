@@ -4,6 +4,7 @@ import { blogCategories, calculateReadTime } from '../../data/blogData';
 import TypewriterSearchInput from '../TypewriterSearchInput';
 import CustomDropdown from '../ui/CustomDropdown';
 import PaginationControls from '../PaginationControls';
+import { unsplashSrcSet } from '../../utils/imageHelper';
 
 const blogPlaceholders = [
     'Search articles or topics...',
@@ -132,13 +133,15 @@ const BlogArticlesGrid = ({
                                     <div className="relative aspect-[16/10] overflow-hidden bg-gray-100">
                                         <img
                                             src={article.image}
+                                            srcSet={unsplashSrcSet(article.image)}
+                                            sizes="(min-width: 1024px) 33vw, (min-width: 640px) 50vw, 100vw"
                                             alt={article.title}
                                             className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 ease-out"
                                             loading="lazy"
                                             decoding="async"
                                         />
                                         <div className="absolute top-3 left-3">
-                                            <span className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-purple-900 bg-[#FAF5EE]/90 backdrop-blur-md px-2.5 py-1 rounded-full border border-[#EADBCE] shadow-2xs">
+                                            <span className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-purple-900 bg-[#FAF5EE]/90 md:backdrop-blur-md px-2.5 py-1 rounded-full border border-[#EADBCE] shadow-2xs">
                                                 {article.category}
                                             </span>
                                         </div>
@@ -173,6 +176,8 @@ const BlogArticlesGrid = ({
                                     {article.author && (
                                         <div className="flex items-center gap-2">
                                             <img
+                                                loading="lazy"
+                                                decoding="async"
                                                 src={article.author.avatar}
                                                 alt={article.author.name}
                                                 className="w-6 h-6 rounded-full object-cover border border-[#EADBCE]"

@@ -61,7 +61,11 @@ const userSchema = new mongoose.Schema({
         date: {
             type: Date,
             default: Date.now
-        }
+        },
+        // Payment references (used for idempotent payment verification and audit)
+        orderId: { type: String },
+        paymentId: { type: String },
+        appointmentId: { type: String }
     }],
     profileCompleted: {
         type: Boolean,
@@ -96,8 +100,16 @@ const userSchema = new mongoose.Schema({
     therapyPreference: {
         type: String,
         default: ""
+    },
+    // Incremented on password change/reset to revoke every previously issued token
+    tokenVersion: {
+        type: Number,
+        default: 0
     }
 });
+
+// Fast idempotency check for coin purchases
+userSchema.index({ 'coinsTransactions.orderId': 1 }, { sparse: true });
 
 const userModel = mongoose.models.user || mongoose.model("user", userSchema);
 

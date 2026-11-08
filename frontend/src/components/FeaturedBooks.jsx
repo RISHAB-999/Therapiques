@@ -2,7 +2,7 @@ import React, { useContext, useMemo, useCallback } from 'react'
 import { ShopContext } from '../context/ShopContext'
 import Title from './Title'
 import { useNavigate } from 'react-router-dom'
-import FeaturedBooksImg from '../assets/featured-books.png'
+import FeaturedBooksImg from '../assets/featured-books.webp'
 import { FadeUp, StaggerContainer, StaggerItem } from './ScrollReveal'
 import { toast } from 'react-toastify'
 

@@ -1,5 +1,6 @@
 import React from 'react';
 import { ArrowUpRight, ArrowRight } from 'lucide-react';
+import { unsplashSrcSet } from '../../utils/imageHelper';
 import {
     getFeaturedArticle,
     getHighlightArticle,
@@ -66,6 +67,8 @@ const BentoHero = ({ onSelectArticle, onSelectCategory, onScrollToExplore }) => 
                     <div className="absolute inset-0 overflow-hidden">
                         <img
                             src={featured.image}
+                            srcSet={unsplashSrcSet(featured.image)}
+                            sizes="(min-width: 1024px) 40vw, 100vw"
                             alt={featured.title}
                             className="w-full h-full object-cover object-center group-hover:scale-105 transition-transform duration-700 ease-out"
                             loading="eager"
@@ -217,9 +220,12 @@ const BentoHero = ({ onSelectArticle, onSelectCategory, onScrollToExplore }) => 
                     <div className="relative w-full h-36 sm:h-40 lg:h-[155px] xl:h-[170px] overflow-hidden mt-auto flex items-end justify-center pointer-events-none">
                         <img
                             src={topRight.image}
+                            srcSet={unsplashSrcSet(topRight.image)}
+                            sizes="(min-width: 1024px) 30vw, 100vw"
                             alt={topRight.title}
                             className="w-full h-full object-cover object-[center_top] group-hover:scale-105 transition-transform duration-500 ease-out select-none"
                             loading="lazy"
+                            decoding="async"
                         />
                     </div>
                 </div>
@@ -239,9 +245,12 @@ const BentoHero = ({ onSelectArticle, onSelectCategory, onScrollToExplore }) => 
                     <div className="absolute inset-0 overflow-hidden">
                         <img
                             src={practice.image}
+                            srcSet={unsplashSrcSet(practice.image)}
+                            sizes="(min-width: 1024px) 36vw, 100vw"
                             alt={practice.title}
                             className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700 ease-out opacity-90"
                             loading="lazy"
+                            decoding="async"
                         />
                         <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/30 to-black/15" />
                     </div>

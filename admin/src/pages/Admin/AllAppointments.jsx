@@ -71,6 +71,7 @@ const AllAppointments = () => {
     if (aToken) {
       getAllAppointments()
       const interval = setInterval(() => {
+        if (document.hidden) return
         getAllAppointments()
       }, 3000)
 

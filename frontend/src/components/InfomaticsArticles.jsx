@@ -1,29 +1,10 @@
-import React, { useEffect, useRef } from "react";
+import React from "react";
+import { useMarquee } from "../hooks/useMarquee";
 import { SplitTextReveal, TypewriterParagraph, FadeUp } from "./ScrollReveal";
 
 const InfomaticArticles = () => {
-  const scrollRef = useRef(null);
-
-  useEffect(() => {
-    const scrollContainer = scrollRef.current;
-    if (!scrollContainer) return;
-
-    let scrollAmount = 0;
-    let rafId;
-
-    const scrollStep = () => {
-      scrollAmount += 0.5; // Slower, smoother scroll
-      if (scrollAmount >= scrollContainer.scrollHeight / 2) {
-        scrollAmount = 0; // Reset for loop effect
-      }
-      scrollContainer.scrollTop = scrollAmount;
-      rafId = requestAnimationFrame(scrollStep);
-    };
-
-    // Use requestAnimationFrame instead of setInterval for smoother 60fps scrolling
-    rafId = requestAnimationFrame(scrollStep);
-    return () => cancelAnimationFrame(rafId);
-  }, []);
+  // Infinite auto-scrolling card column as a GPU marquee (was a never-ending rAF + scrollTop loop)
+  const { viewportRef, trackRef } = useMarquee(30);
 
   const cards = [
     {
@@ -79,8 +60,8 @@ const InfomaticArticles = () => {
       {/* Right Side (Scrolling Cards) */}
       <div className="w-full md:w-1/2 overflow-hidden h-[380px] md:h-[450px] relative">
         <div
-          ref={scrollRef}
-          className="overflow-y-hidden h-full space-y-6 pb-12"
+          ref={viewportRef}
+          className="overflow-hidden h-full"
           style={{
             maskImage:
               "linear-gradient(to bottom, transparent, black 10%, black 90%, transparent)",
@@ -88,9 +69,14 @@ const InfomaticArticles = () => {
               "linear-gradient(to bottom, transparent, black 10%, black 90%, transparent)",
           }}
         >
-          {cards.concat(cards).map((card, idx) => (
-            <ScrollingCard key={idx} {...card} />
-          ))}
+          {/* Items carry their own bottom gap so the doubled track is exactly 2x one copy (seamless loop) */}
+          <div ref={trackRef} className="marquee-y">
+            {cards.concat(cards).map((card, idx) => (
+              <div key={idx} className="pb-6">
+                <ScrollingCard {...card} />
+              </div>
+            ))}
+          </div>
         </div>
       </div>
     </section>

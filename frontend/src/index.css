@@ -47,10 +47,63 @@ input[type="search"]::-webkit-search-results-decoration {
 
 /* GPU backface-visibility optimization — scoped to animated/transformed elements only */
 .transform-gpu,
-.will-change-transform,
-[style*="transform"] {
+.will-change-transform {
   -webkit-backface-visibility: hidden;
   backface-visibility: hidden;
+}
+
+/* ── Word / character reveal (components/WordReveal.jsx) ──
+   Transitions only opacity + transform, so they run on the compositor. The resting states use
+   2D transforms, so elements are promoted to a GPU layer only while they actually animate. */
+.reveal-word {
+  opacity: 0;
+  /* 2D transform on purpose: a resting 3D transform would force a GPU layer per hidden word */
+  transform: translateY(var(--ry, 10px));
+  transition:
+    opacity var(--rdur, 0.32s) var(--rease, cubic-bezier(0.22, 1, 0.36, 1)) var(--rd, 0s),
+    transform var(--rdur, 0.32s) var(--rease, cubic-bezier(0.22, 1, 0.36, 1)) var(--rd, 0s);
+}
+.reveal-on .reveal-word {
+  opacity: 1;
+  transform: none;
+}
+
+/* ── Block reveal (FadeUp / StaggerItem / ImageRevealMask in ScrollReveal.jsx) ── */
+.reveal-block {
+  opacity: 0;
+  transform: translateY(var(--ry, 0px)) scale(var(--rs, 1));
+  transition:
+    opacity var(--rdur, 0.6s) var(--rease, ease-out) var(--rd, 0s),
+    transform var(--rdur, 0.6s) var(--rease, ease-out) var(--rd, 0s);
+}
+.reveal-block.reveal-on {
+  opacity: 1;
+  transform: none;
+}
+
+/* Vertical infinite marquee (hooks/useMarquee.js) */
+@keyframes marquee-y {
+  from { transform: translate3d(0, 0, 0); }
+  to { transform: translate3d(0, -50%, 0); }
+}
+.marquee-y {
+  animation: marquee-y var(--marquee-duration, 20s) linear infinite;
+  will-change: transform;
+}
+
+/* Gentle floating image (was an infinite JS-driven animation) */
+@keyframes gentle-float {
+  0%, 100% { transform: translate3d(0, 0, 0); }
+  50% { transform: translate3d(0, -7px, 0); }
+}
+.animate-gentle-float {
+  animation: gentle-float 5s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .reveal-word, .reveal-block { opacity: 1; transform: none; transition: none; }
+  .animate-gentle-float { animation: none; }
+  .marquee-y { animation: none; }
 }
 
 /* Respect user preference for reduced motion (accessibility + battery savings) */

@@ -1,3 +1,4 @@
+import { clientError, isObjectId } from '../utils/security.js';
 import { v2 as cloudinary } from 'cloudinary';
 import bookModel from '../models/bookModel.js';
 import orderModel from '../models/orderModel.js';
@@ -808,7 +809,7 @@ const addBook = async (req, res) => {
 
     } catch (error) {
         console.log("Error in addBook:", error);
-        res.json({ success: false, message: error.message });
+        res.json({ success: false, message: clientError(error) });
     }
 };
 
@@ -831,7 +832,7 @@ const listBooks = async (req, res) => {
         res.json({ success: true, books });
     } catch (error) {
         console.log("Error in listBooks:", error);
-        res.json({ success: false, message: error.message });
+        res.json({ success: false, message: clientError(error) });
     }
 };
 
@@ -846,7 +847,7 @@ const removeBook = async (req, res) => {
         res.json({ success: true, message: "Book Removed from Library" });
     } catch (error) {
         console.log("Error in removeBook:", error);
-        res.json({ success: false, message: error.message });
+        res.json({ success: false, message: clientError(error) });
     }
 };
 
@@ -863,7 +864,7 @@ const toggleStock = async (req, res) => {
         res.json({ success: true, message: `Stock status updated to ${book.inStock ? 'In Stock' : 'Out of Stock'}` });
     } catch (error) {
         console.log("Error in toggleStock:", error);
-        res.json({ success: false, message: error.message });
+        res.json({ success: false, message: clientError(error) });
     }
 };
 
@@ -929,7 +930,7 @@ const allOrders = async (req, res) => {
         res.json({ success: true, orders: enrichedOrders });
     } catch (error) {
         console.log("Error in allOrders:", error);
-        res.json({ success: false, message: error.message });
+        res.json({ success: false, message: clientError(error) });
     }
 };
 
@@ -937,14 +938,14 @@ const allOrders = async (req, res) => {
 const updateOrderStatus = async (req, res) => {
     try {
         const { orderId, status } = req.body;
-        if (!orderId || !status) {
+        if (!isObjectId(orderId) || typeof status !== 'string' || !status.trim() || status.length > 50) {
             return res.json({ success: false, message: "Order ID and status required" });
         }
         await orderModel.findByIdAndUpdate(orderId, { status, isManualStatus: true });
         res.json({ success: true, message: `Order status updated to '${status}'` });
     } catch (error) {
         console.log("Error in updateOrderStatus:", error);
-        res.json({ success: false, message: error.message });
+        res.json({ success: false, message: clientError(error) });
     }
 };
 
@@ -955,7 +956,7 @@ const clearAllOrders = async (req, res) => {
         res.json({ success: true, message: "All book orders removed from database successfully!" });
     } catch (error) {
         console.log("Error in clearAllOrders:", error);
-        res.json({ success: false, message: error.message });
+        res.json({ success: false, message: clientError(error) });
     }
 };
 
@@ -980,7 +981,7 @@ const toggleFormatStock = async (req, res) => {
         res.json({ success: true, message: `'${format}' format status updated to ${isNowOut ? 'Out of Stock' : 'In Stock'}` });
     } catch (error) {
         console.log("Error in toggleFormatStock:", error);
-        res.json({ success: false, message: error.message });
+        res.json({ success: false, message: clientError(error) });
     }
 };
 

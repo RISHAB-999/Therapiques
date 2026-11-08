@@ -1,20 +1,11 @@
 import nodemailer from 'nodemailer';
 import dns from 'dns';
-import shared from 'nodemailer/lib/shared/index.js';
 
 if (dns && dns.setDefaultResultOrder) {
     dns.setDefaultResultOrder('ipv4first');
 }
 
-// Force Nodemailer to strictly use IPv4 and never pick unreachable IPv6 addresses
-if (shared && shared.networkInterfaces) {
-    const orig = shared.networkInterfaces;
-    const ipv4Only = {};
-    for (const [k, v] of Object.entries(orig)) {
-        ipv4Only[k] = v.filter(i => i.family === 'IPv4' || i.family === 4);
-    }
-    shared.networkInterfaces = ipv4Only;
-}
+// IPv4 is enforced per transport below via `family: 4` and an IPv4-only DNS lookup
 
 let transporter = null;
 
@@ -39,8 +30,10 @@ export const getTransporter = () => {
                 lookup: (hostname, options, callback) => {
                     dns.lookup(hostname, { family: 4 }, callback);
                 },
+                // Always verify the SMTP server certificate (prevents MITM credential theft)
                 tls: {
-                    rejectUnauthorized: false
+                    rejectUnauthorized: true,
+                    minVersion: 'TLSv1.2'
                 }
             });
         }

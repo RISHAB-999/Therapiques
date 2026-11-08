@@ -1,4 +1,4 @@
-import jwt from 'jsonwebtoken'
+import { verifyToken } from '../utils/tokens.js'
 import userModel from '../models/userModel.js'
 import doctorModel from '../models/doctorModel.js'
 import { validateAndConsumeTicket } from './callTicketManager.js'
@@ -15,7 +15,7 @@ export const socketAuthMiddleware = async (socket, next) => {
     const { token, dtoken, callTicket } = socket.handshake.auth || {}
 
     // Option A: Doctor authenticated via short-lived call ticket
-    if (callTicket) {
+    if (typeof callTicket === 'string' && callTicket) {
       const ticketData = validateAndConsumeTicket(callTicket)
       if (ticketData) {
         socket.data = {
@@ -33,9 +33,9 @@ export const socketAuthMiddleware = async (socket, next) => {
     // Option B: Patient authenticated via User JWT Token
     if (token) {
       try {
-        const decoded = jwt.verify(token, process.env.JWT_SECRET)
-        const user = await userModel.findById(decoded.id).select('-password')
-        if (user) {
+        const decoded = verifyToken(token, 'user')
+        const user = decoded && await userModel.findById(decoded.id).select('name image tokenVersion')
+        if (user && (user.tokenVersion || 0) === (decoded.tv || 0)) {
           socket.data = {
             userId: user._id.toString(),
             role: 'user',
@@ -52,9 +52,9 @@ export const socketAuthMiddleware = async (socket, next) => {
     // Option C: Doctor authenticated via Doctor JWT Token
     if (dtoken) {
       try {
-        const decoded = jwt.verify(dtoken, process.env.JWT_SECRET)
-        const doctor = await doctorModel.findById(decoded.id).select('-password')
-        if (doctor) {
+        const decoded = verifyToken(dtoken, 'doctor')
+        const doctor = decoded && await doctorModel.findById(decoded.id).select('name image tokenVersion')
+        if (doctor && (doctor.tokenVersion || 0) === (decoded.tv || 0)) {
           socket.data = {
             userId: doctor._id.toString(),
             role: 'doctor',
@@ -71,6 +71,6 @@ export const socketAuthMiddleware = async (socket, next) => {
     return next(new Error('Authentication token or ticket required'))
   } catch (error) {
     console.error('Socket Authentication Error:', error.message)
-    return next(new Error('Authentication failed: ' + error.message))
+    return next(new Error('Authentication failed'))
   }
 }

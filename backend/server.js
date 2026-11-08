@@ -2,30 +2,32 @@ import dns from 'dns'
 if (dns && dns.setDefaultResultOrder) {
     dns.setDefaultResultOrder('ipv4first')
 }
-import express from 'express'
-import cors from 'cors'
-import compression from 'compression'
 import 'dotenv/config'
-import path from 'path'
-import { fileURLToPath } from 'url'
 import http from 'http'
 import connectDB from './config/mongodb.js'
 import connectCloudinary from './config/cloudinary.js'
-import adminRouter from './routes/adminRoutes.js'
-import doctorRouter from './routes/doctorRoutes.js'
-import userRouter from './routes/userRoutes.js'
-import bookRouter from './routes/bookRoutes.js'
-import assistantRouter from './routes/assistantRoutes.js'
+import { createApp } from './app.js'
 import { initializeSocket } from './socket/index.js'
 import doctorModel from './models/doctorModel.js'
 import userModel from './models/userModel.js'
 import appointmentModel from './models/appointmentModel.js'
 import { startAppointmentReminderService } from './services/appointmentReminderService.js'
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+// Fail fast if required configuration is missing (never start with insecure defaults)
+const REQUIRED_ENV = ['MONGO_URI', 'JWT_SECRET', 'ADMIN_EMAIL', 'ADMIN_PASSWORD']
+const missingEnv = REQUIRED_ENV.filter(key => !process.env[key])
+if (missingEnv.length > 0) {
+    console.error(`Missing required environment variables: ${missingEnv.join(', ')}`)
+    process.exit(1)
+}
+if (process.env.JWT_SECRET.length < 32) {
+    console.warn('[Security] JWT_SECRET is shorter than 32 characters. Rotate it to a long random value.')
+}
+if (process.env.NODE_ENV === 'production' && !process.env.CORS_ORIGINS) {
+    console.warn('[Security] CORS_ORIGINS is not set; allowing *.vercel.app origins. Set it to your exact frontend URLs.')
+}
 
-const app = express()
+const app = createApp()
 const server = http.createServer(app)
 const PORT = process.env.PORT || 4000
 
@@ -72,28 +74,6 @@ connectDB().then(() => {
     }, 5000);
 });
 connectCloudinary();
-
-// MIDDLEWARES
-app.use(compression()) // Gzip/Brotli compress all API responses (~60-80% size reduction)
-app.use(express.json())
-app.use(cors())
-
-// Serve custom book cover images statically with caching headers
-app.use('/book-covers', express.static(path.join(__dirname, '../frontend/src/assets/book pic'), {
-    maxAge: '7d',
-    immutable: true
-}));
-
-// API ENDPOINTS
-app.use('/api/admin', adminRouter);
-app.use('/api/doctor', doctorRouter);
-app.use('/api/user', userRouter);
-app.use('/api/book', bookRouter);
-app.use('/api/assistant', assistantRouter);
-
-app.get('/', (req, res) => {
-    res.send('Therapique Backend API Running');
-});
 
 // Initialize Socket.io WebRTC signaling server
 initializeSocket(server);

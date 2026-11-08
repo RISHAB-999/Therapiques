@@ -38,6 +38,7 @@ const DoctorAppointments = () => {
 
   useEffect(() => {
     const timer = setInterval(() => {
+      if (document.hidden) return
       setCurrentTime(new Date())
     }, 5000)
     return () => clearInterval(timer)
@@ -57,6 +58,7 @@ const DoctorAppointments = () => {
     if (dToken) {
       getAppointments()
       const interval = setInterval(() => {
+        if (document.hidden) return
         getAppointments()
       }, 3000)
 

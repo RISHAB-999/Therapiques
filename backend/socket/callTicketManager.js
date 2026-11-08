@@ -15,7 +15,7 @@ setInterval(() => {
       tickets.delete(id)
     }
   }
-}, 60 * 1000)
+}, 60 * 1000).unref()
 
 /**
  * Create a short-lived, one-time call ticket for a doctor.

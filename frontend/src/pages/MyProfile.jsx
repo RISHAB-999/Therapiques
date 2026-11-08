@@ -39,7 +39,7 @@ const SUPPORT_AREAS_LIST = [
 ]
 
 const MyProfile = () => {
-    const { token, backendUrl, userData, setUserData, loadUserProfileData } = useContext(AppContext)
+    const { token, setToken, backendUrl, userData, setUserData, loadUserProfileData } = useContext(AppContext)
     const [isEdit, setIsEdit] = useState(false)
     const [image, setImage] = useState(false)
     const [rawImgFile, setRawImgFile] = useState(null)
@@ -84,6 +84,11 @@ const MyProfile = () => {
             )
 
             if (data.success) {
+                // Password change revokes older sessions; keep this device signed in with the fresh token
+                if (data.token) {
+                    localStorage.setItem('token', data.token)
+                    setToken(data.token)
+                }
                 toast.success(data.message || 'Password updated successfully!')
                 setCurrentPassword('')
                 setNewPassword('')

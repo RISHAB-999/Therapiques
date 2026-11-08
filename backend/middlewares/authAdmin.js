@@ -1,33 +1,15 @@
-import jwt from "jsonwebtoken";
+import { verifyToken, adminFingerprint, SESSION_EXPIRED } from '../utils/tokens.js'
+import { safeEqual } from '../utils/security.js'
 
-//auth authentication middleware
+// Admin authentication middleware: requires a non-expired admin-role token
+// issued for the current admin credentials.
 const authAdmin = (req, res, next) => {
-    try {
-        const { atoken } = req.headers
-        if (!atoken) {
-            return res.json({
-                success: false,
-                message: "Not Authorized.Login Again"
-            });
-        }
-
-        const atoken_decode = jwt.verify(atoken, process.env.JWT_SECRET);
-        if (atoken_decode !== process.env.ADMIN_EMAIL + process.env.ADMIN_PASSWORD) {
-            return res.json({
-                success: false,
-                message: "Not Authorized.Login Again"
-            });
-        }
-        next();
-
-    } catch (error) {
-        console.log("here")
-        console.log(error);
-        return res.json({
-            success: false,
-            message: error.message
-        });
+    const decoded = verifyToken(req.headers.atoken, 'admin')
+    if (!decoded || !safeEqual(String(decoded.fp || ''), adminFingerprint())) {
+        return res.json({ success: false, message: decoded ? SESSION_EXPIRED : 'Not Authorized. Login Again' })
     }
-};
+    req.isAdmin = true
+    next()
+}
 
-export default authAdmin;
+export default authAdmin

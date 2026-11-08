@@ -137,6 +137,7 @@ const CartTotal = () => {
             return {
                 _id: item?._id || itemId,
                 name: `${item?.name || item?.title || 'Book'} (${fmtName})`,
+                format: fmtName,
                 price: unitPrice,
                 quantity: Number(qty) || 1,
                 image: Array.isArray(item?.image) && item.image.length > 0 ? item.image[0] : (typeof item?.image === 'string' ? item.image : '')

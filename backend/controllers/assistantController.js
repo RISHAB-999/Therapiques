@@ -19,7 +19,7 @@ const cleanupInterval = setInterval(() => {
             rateLimitMap.set(ip, valid);
         }
     }
-}, 5 * 60 * 1000); // cleanup every 5 minutes
+}, 5 * 60 * 1000).unref(); // cleanup every 5 minutes
 
 // Prevent memory leak on server shutdown
 if (typeof process !== 'undefined') {
@@ -476,7 +476,8 @@ Remember: You are a helpful Therapique website guide. Be warm, clear, and always
 export const chatWithAssistant = async (req, res) => {
     try {
         // 1. Rate limiting
-        const clientIp = req.headers['x-forwarded-for']?.split(',')[0]?.trim() || req.ip || req.socket?.remoteAddress || 'unknown';
+        // req.ip honours Express `trust proxy`, so a client-supplied X-Forwarded-For header cannot rotate the key
+        const clientIp = req.ip || req.socket?.remoteAddress || 'unknown';
         if (!checkRateLimit(clientIp)) {
             return res.status(429).json({
                 success: false,

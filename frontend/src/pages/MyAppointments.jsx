@@ -9,6 +9,7 @@ import ReceiptModal from '../components/ReceiptModal'
 import PaginationControls from '../components/PaginationControls'
 import { slotDateFormat } from '../utils/dateFormatter'
 import { getAppointmentJoinStatus, getAppointmentTimeRange } from '../utils/appointmentTiming'
+import { useStableState } from '../hooks/useStableState'
 
 const TokenCoinSVG = ({ className = "w-3.5 h-3.5" }) => (
   <svg className={className} viewBox="0 0 24 24" fill="none">
@@ -22,7 +23,7 @@ const MyAppointments = () => {
   const { backendUrl, token, getDoctorData, loadUserProfileData, setUserData } = useContext(AppContext)
   const navigate = useNavigate()
 
-  const [appointments, setAppointments] = useState([])
+  const [appointments, setAppointments] = useStableState([])
   const [loading, setLoading] = useState(true)
   const [currentTime, setCurrentTime] = useState(new Date())
   const [showRefundModal, setShowRefundModal] = useState(false)
@@ -35,6 +36,7 @@ const MyAppointments = () => {
   // Live timer interval to update join-window states dynamically in real-time
   useEffect(() => {
     const timer = setInterval(() => {
+      if (document.hidden) return
       setCurrentTime(new Date())
     }, 5000)
     return () => clearInterval(timer)
@@ -142,6 +144,7 @@ const MyAppointments = () => {
     if (token) {
       getUserAppointments()
       const interval = setInterval(() => {
+        if (document.hidden) return
         getUserAppointments(true)
       }, 3000)
 

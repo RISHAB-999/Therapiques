@@ -1,5 +1,7 @@
-import React, { useRef, useEffect, useState } from 'react'
+import React, { useRef, useEffect, useState, useMemo, createContext, useContext } from 'react'
 import { motion, AnimatePresence } from 'motion/react'
+import WordReveal from './WordReveal'
+import { useRevealOnView } from '../hooks/useRevealOnView'
 
 /**
  * 1. ScrollFadeInOut: Clean wrapper without scroll dissolve/exit
@@ -18,7 +20,7 @@ export const ScrollFadeInOut = ({
 
 /**
  * 2. Word-by-Word Split Text Line Reveal (Animates once on entrance)
- *    Performance: Uses only opacity + translateY (GPU composited), no filter:blur
+ *    Performance: CSS transitions via <WordReveal> — no per-word JS, no lingering GPU layers.
  */
 export const SplitTextReveal = ({
   text,
@@ -40,57 +42,9 @@ export const SplitTextReveal = ({
     )
   }
 
-  const words = content.split(' ')
-
-  const containerVariants = {
-    hidden: { opacity: 0 },
-    visible: {
-      opacity: 1,
-      transition: {
-        staggerChildren: wordDelay,
-        delayChildren: delay,
-      },
-    },
-  }
-
-  const wordVariants = {
-    hidden: {
-      opacity: 0,
-      y: 10,
-    },
-    visible: {
-      opacity: 1,
-      y: 0,
-      transition: {
-        duration: 0.32,
-        ease: [0.22, 1, 0.36, 1],
-      },
-    },
-  }
-
   return (
-    <Component className={className} {...props}>
-      <motion.span
-        initial="hidden"
-        animate={animate !== undefined ? animate : undefined}
-        whileInView={animate === undefined ? "visible" : undefined}
-        viewport={animate === undefined ? { once: true, amount: 0, margin: "200px 0px" } : undefined}
-        variants={containerVariants}
-        className="inline"
-      >
-        {words.map((word, idx) => (
-          <React.Fragment key={idx}>
-            <motion.span
-              variants={wordVariants}
-              className="inline-block leading-normal transform-gpu"
-            >
-              {word}
-            </motion.span>
-            {idx < words.length - 1 && ' '}
-          </React.Fragment>
-        ))}
-      </motion.span>
-    </Component>
+    <WordReveal text={content} as={Component} className={className} delay={delay} stagger={wordDelay}
+      duration={0.32} distance={10} animate={animate} {...props} />
   )
 }
 
@@ -101,6 +55,7 @@ export const TypewriterParagraph = ({
   delay = 0,
   wordDelay = 0.025,
   as: Component = 'p',
+  // eslint-disable-next-line no-unused-vars
   once = true,
   animate,
   ...props
@@ -115,74 +70,28 @@ export const TypewriterParagraph = ({
     )
   }
 
-  const words = content.split(' ')
-
-  const containerVariants = {
-    hidden: { opacity: 0 },
-    visible: {
-      opacity: 1,
-      transition: {
-        staggerChildren: wordDelay,
-        delayChildren: delay,
-      },
-    },
-  }
-
-  const wordVariants = {
-    hidden: {
-      opacity: 0,
-      y: 8,
-    },
-    visible: {
-      opacity: 1,
-      y: 0,
-      transition: {
-        duration: 0.3,
-        ease: [0.22, 1, 0.36, 1],
-      },
-    },
-  }
-
   return (
-    <Component className={className} {...props}>
-      <motion.span
-        initial="hidden"
-        animate={animate !== undefined ? animate : undefined}
-        whileInView={animate === undefined ? "visible" : undefined}
-        viewport={animate === undefined ? { once: true, amount: 0, margin: "200px 0px" } : undefined}
-        variants={containerVariants}
-        className="inline"
-      >
-        {words.map((word, idx) => (
-          <React.Fragment key={idx}>
-            <motion.span
-              variants={wordVariants}
-              className="inline-block leading-normal transform-gpu"
-            >
-              {word}
-            </motion.span>
-            {idx < words.length - 1 && ' '}
-          </React.Fragment>
-        ))}
-      </motion.span>
-    </Component>
+    <WordReveal text={content} as={Component} className={className} delay={delay} stagger={wordDelay}
+      duration={0.3} distance={8} animate={animate} {...props} />
   )
 }
 
 /**
- * ScrollDissolveContainer: Clean container
+ * Shared CSS reveal block (opacity + translate/scale) — see `.reveal-block` in index.css.
+ * Runs as a compositor transition instead of a per-frame JS animation, so scrolling
+ * into new sections no longer forces style recalculation on every frame.
  */
-export const ScrollDissolveContainer = ({ children, className = '', ...props }) => {
-  return (
-    <div className={`relative ${className}`} {...props}>
-      {children}
-    </div>
-  )
-}
+const EASE_SOFT = 'cubic-bezier(0.16, 1, 0.3, 1)'
+const EASE_SMOOTH = 'cubic-bezier(0.22, 1, 0.36, 1)'
+
+const revealVars = ({ delay = 0, duration, ease, y = 0, scale = 1 }) => ({
+  '--rd': `${delay}s`, '--rdur': `${duration}s`, '--rease': ease, '--ry': `${y}px`, '--rs': scale,
+})
+
+const toControlled = (animate) => (animate === undefined ? undefined : animate !== 'hidden' && animate !== false)
 
 /**
  * 3. Image Reveal Mask with Entrance Animation & Gentle Floating
- *    Performance: Uses only opacity, scale, translateY (GPU composited)
  */
 export const ImageRevealMask = ({
   children,
@@ -193,40 +102,34 @@ export const ImageRevealMask = ({
   float = false,
   delay = 0.25,
   animate,
+  style,
   ...props
 }) => {
+  const [ref, visible] = useRevealOnView(toControlled(animate))
   return (
-    <motion.div
-      initial={{ opacity: 0, scale: 0.95, y: 20 }}
-      animate={animate !== undefined ? (animate === "hidden" ? { opacity: 0, scale: 0.95, y: 20 } : { opacity: 1, scale: 1, y: 0 }) : undefined}
-      whileInView={animate === undefined ? { opacity: 1, scale: 1, y: 0 } : undefined}
-      viewport={animate === undefined ? { once: true, amount: 0, margin: "200px 0px" } : undefined}
-      transition={{ duration: 0.6, delay, ease: [0.22, 1, 0.36, 1] }}
-      className={`overflow-hidden transform-gpu ${className}`}
-      style={{ backfaceVisibility: 'hidden' }}
+    <div
+      ref={ref}
+      className={`reveal-block overflow-hidden ${visible ? 'reveal-on' : ''} ${className}`}
+      style={{ ...revealVars({ delay, duration: 0.6, ease: EASE_SMOOTH, y: 20, scale: 0.95 }), ...style }}
       {...props}
     >
+      {/* Gentle infinite float is a CSS keyframe animation (runs on the compositor, zero JS per frame) */}
       <div className="w-full h-full">
         {float ? (
-          <motion.div
-            animate={{ y: [0, -7, 0] }}
-            transition={{ duration: 5, repeat: Infinity, ease: "easeInOut" }}
-            className="w-full h-full transform-gpu"
-            style={{ backfaceVisibility: 'hidden' }}
-          >
+          <div className="w-full h-full animate-gentle-float">
             {src ? (
               <img src={src} alt={alt} className={imgClassName} loading="eager" />
             ) : (
               children
             )}
-          </motion.div>
+          </div>
         ) : src ? (
           <img src={src} alt={alt} className={imgClassName} loading="lazy" />
         ) : (
           children
         )}
       </div>
-    </motion.div>
+    </div>
   )
 }
 
@@ -237,86 +140,90 @@ export const FadeUp = ({
   children,
   delay = 0,
   duration = 0.75,
-  y = 20,
+  // eslint-disable-next-line no-unused-vars
+  y = 20, // kept for API compatibility; the entrance offset has always been 16px
   className = '',
   animate,
+  style,
   ...props
 }) => {
+  const [ref, visible] = useRevealOnView(toControlled(animate))
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 16 }}
-      animate={animate !== undefined ? (animate === "hidden" ? { opacity: 0, y: 16 } : { opacity: 1, y: 0 }) : undefined}
-      whileInView={animate === undefined ? { opacity: 1, y: 0 } : undefined}
-      viewport={animate === undefined ? { once: true, amount: 0, margin: "200px 0px" } : undefined}
-      transition={{ duration, delay, ease: [0.16, 1, 0.3, 1] }}
-      className={`transform-gpu ${className}`}
+    <div
+      ref={ref}
+      className={`reveal-block ${visible ? 'reveal-on' : ''} ${className}`}
+      style={{ ...revealVars({ delay, duration, ease: EASE_SOFT, y: 16 }), ...style }}
       {...props}
     >
       {children}
-    </motion.div>
+    </div>
   )
 }
 
 /**
  * 5. Stagger Container for Cards & Grids
+ *    Each direct child receives its position so StaggerItem can compute its own delay.
  */
+const StaggerContext = createContext(null)
+const StaggerIndex = createContext(0)
+
 export const StaggerContainer = ({
   children,
   staggerDelay = 0.1,
   delayChildren = 0,
   className = '',
   animate,
+  // eslint-disable-next-line no-unused-vars
+  as, // previously ignored by motion.div; the element stays a <div>
+  style,
   ...props
 }) => {
+  const [ref, visible] = useRevealOnView(toControlled(animate))
+  const ctx = useMemo(() => ({ visible, staggerDelay, delayChildren }), [visible, staggerDelay, delayChildren])
+  let i = 0
   return (
-    <motion.div
-      initial="hidden"
-      animate={animate !== undefined ? animate : undefined}
-      whileInView={animate === undefined ? "visible" : undefined}
-      viewport={animate === undefined ? { once: true, amount: 0, margin: "200px 0px" } : undefined}
-      variants={{
-        hidden: { opacity: 0 },
-        visible: {
-          opacity: 1,
-          transition: {
-            staggerChildren: staggerDelay,
-            delayChildren,
-          },
-        },
-      }}
-      className={className}
-      {...props}
-    >
-      {children}
-    </motion.div>
+    <StaggerContext.Provider value={ctx}>
+      <div
+        ref={ref}
+        className={`reveal-block ${visible ? 'reveal-on' : ''} ${className}`}
+        style={{ ...revealVars({ duration: 0.3, ease: 'ease-out' }), ...style }}
+        {...props}
+      >
+        {React.Children.map(children, (child) => (
+          <StaggerIndex.Provider value={i++}>{child}</StaggerIndex.Provider>
+        ))}
+      </div>
+    </StaggerContext.Provider>
   )
 }
 
 /**
- * 6. Stagger Card Item with translateY(16px -> 0) & Smooth Natural Float
+ * 6. Stagger Card Item with translateY(16px -> 0)
  */
 export const StaggerItem = ({
   children,
   className = '',
-  y = 16,
+  // eslint-disable-next-line no-unused-vars
+  y = 16, // kept for API compatibility; the entrance offset has always been 16px
   duration = 0.75,
+  // eslint-disable-next-line no-unused-vars
+  as,
+  style,
   ...props
 }) => {
+  const ctx = useContext(StaggerContext)
+  const index = useContext(StaggerIndex)
+  // Outside a container there is nothing to orchestrate it, so it simply renders visible.
+  const visible = ctx ? ctx.visible : true
+  const delay = ctx ? ctx.delayChildren + index * ctx.staggerDelay : 0
   return (
-    <motion.div
-      variants={{
-        hidden: { opacity: 0, y: 16 },
-        visible: {
-          opacity: 1,
-          y: 0,
-          transition: { duration, ease: [0.16, 1, 0.3, 1] },
-        },
-      }}
-      className={`transform-gpu ${className}`}
+    <div
+      className={`reveal-block ${visible ? 'reveal-on' : ''} ${className}`}
+      style={{ ...revealVars({ delay, duration, ease: EASE_SOFT, y: 16 }), ...style }}
       {...props}
     >
       {children}
-    </motion.div>
+    </div>
   )
 }
 

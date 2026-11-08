@@ -5,9 +5,11 @@ import { Swiper, SwiperSlide } from 'swiper/react'
 import 'swiper/css'
 import { Autoplay } from 'swiper/modules'
 import Item from './Item'
+import { useInViewAutoplay } from '../hooks/useInViewAutoplay'
 import { FadeUp } from './ScrollReveal'
 
 const NewArrivals = () => {
+    const onSwiper = useInViewAutoplay()
   const { books } = useContext(ShopContext)
   const newArrivals = useMemo(() => books.slice(0, 10), [books])
 
@@ -21,6 +23,7 @@ const NewArrivals = () => {
       {/* CONTAINER */}
       <FadeUp delay={0.15} duration={0.8} className="mt-2 min-h-[320px] sm:min-h-[350px]">
         <Swiper
+          onSwiper={onSwiper}
           speed={850}
           autoplay={{
             delay: 4500,

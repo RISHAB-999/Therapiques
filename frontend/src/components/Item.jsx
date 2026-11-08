@@ -39,7 +39,7 @@ const Item = ({ book, index, isStacked = false, fromHero = false }) => {
   return (
     <div
       onClick={handleBookClick}
-      className={`flex flex-col justify-between h-full rounded-3xl cursor-pointer group border transition-all duration-500 ease-out will-change-transform ${
+      className={`flex flex-col justify-between h-full rounded-3xl cursor-pointer group border transition-all duration-500 ease-out ${
         fromHero
           ? 'p-3.5 bg-white border-[#EADBCE] shadow-[0_4px_16px_rgba(70,56,48,0.06)] hover:bg-[#FAF5EE] hover:border-[#D4C3B3] hover:-translate-y-2.5 hover:scale-[1.02] hover:shadow-[0_20px_40px_-10px_rgba(70,56,48,0.16)] relative z-10 hover:z-30'
           : isStacked
